@@ -1,47 +1,47 @@
 const fs = require('fs');
-const TokenEnum = require('./interpreter');
+const Token = require('./interpreter');
 const Identifier = require('./identifier');
 
 const ReservedWords = {
-	"#define": TokenEnum.TokenHashDefine,
-    "#else": TokenEnum.TokenHashElse,
-    "#endif": TokenEnum.TokenHashEndif,
-    "#if": TokenEnum.TokenHashIf,
-    "#ifdef": TokenEnum.TokenHashIfdef,
-    "#ifndef": TokenEnum.TokenHashIfndef,
-    "#include": TokenEnum.TokenHashInclude,
-    "auto": TokenEnum.TokenAutoType,
-    "break": TokenEnum.TokenBreak,
-    "case": TokenEnum.TokenCase,
-    "char": TokenEnum.TokenCharType,
-    "continue": TokenEnum.TokenContinue,
-    "default": TokenEnum.TokenDefault,
-    "delete": TokenEnum.TokenDelete,
-    "do": TokenEnum.TokenDo,
-    "double": TokenEnum.TokenDoubleType,
-    "else": TokenEnum.TokenElse,
-    "enum": TokenEnum.TokenEnumType,
-    "extern": TokenEnum.TokenExternType,
-    "float": TokenEnum.TokenFloatType,
-    "for": TokenEnum.TokenFor,
-    "goto": TokenEnum.TokenGoto,
-    "if": TokenEnum.TokenIf,
-    "int": TokenEnum.TokenIntType,
-    "long": TokenEnum.TokenLongType,
-    "new": TokenEnum.TokenNew,
-    "register": TokenEnum.TokenRegisterType,
-    "return": TokenEnum.TokenReturn,
-    "short": TokenEnum.TokenShortType,
-    "signed": TokenEnum.TokenSignedType,
-    "sizeof": TokenEnum.TokenSizeof,
-    "static": TokenEnum.TokenStaticType,
-    "struct": TokenEnum.TokenStructType,
-    "switch": TokenEnum.TokenSwitch,
-    "typedef": TokenEnum.TokenTypedef,
-    "union": TokenEnum.TokenUnionType,
-    "unsigned": TokenEnum.TokenUnsignedType,
-    "void": TokenEnum.TokenVoidType,
-    "while": TokenEnum.TokenWhile
+	"#define": Token.TokenHashDefine,
+    "#else": Token.TokenHashElse,
+    "#endif": Token.TokenHashEndif,
+    "#if": Token.TokenHashIf,
+    "#ifdef": Token.TokenHashIfdef,
+    "#ifndef": Token.TokenHashIfndef,
+    "#include": Token.TokenHashInclude,
+    "auto": Token.TokenAutoType,
+    "break": Token.TokenBreak,
+    "case": Token.TokenCase,
+    "char": Token.TokenCharType,
+    "continue": Token.TokenContinue,
+    "default": Token.TokenDefault,
+    "delete": Token.TokenDelete,
+    "do": Token.TokenDo,
+    "double": Token.TokenDoubleType,
+    "else": Token.TokenElse,
+    "enum": Token.TokenType,
+    "extern": Token.TokenExternType,
+    "float": Token.TokenFloatType,
+    "for": Token.TokenFor,
+    "goto": Token.TokenGoto,
+    "if": Token.TokenIf,
+    "int": Token.TokenIntType,
+    "long": Token.TokenLongType,
+    "new": Token.TokenNew,
+    "register": Token.TokenRegisterType,
+    "return": Token.TokenReturn,
+    "short": Token.TokenShortType,
+    "signed": Token.TokenSignedType,
+    "sizeof": Token.TokenSizeof,
+    "static": Token.TokenStaticType,
+    "struct": Token.TokenStructType,
+    "switch": Token.TokenSwitch,
+    "typedef": Token.TokenTypedef,
+    "union": Token.TokenUnionType,
+    "unsigned": Token.TokenUnsignedType,
+    "void": Token.TokenVoidType,
+    "while": Token.TokenWhile
 };
 
 class Lexer {
@@ -59,7 +59,7 @@ class Lexer {
 			return ReservedWords[word];
 		}
 
-		return TokenEnum.TokenNone;
+		return Token.TokenNone;
 	}
 
 	increment(n) {
@@ -171,8 +171,12 @@ class Lexer {
 		return this.source[n];
 	}
 
+    getNextChar() {
+        return this.getChar(1);
+    }
+
 	/* 从当前扫描位置获取一个identifier，此identifier可能是保留关键字，也可能是变量名 
-	 * 此函数有两个返回值: 1. TokenEnum 2. identifier string(null for reserved words)
+	 * 此函数有两个返回值: 1. Token 2. identifier string(null for reserved words)
 	 * */
 	getWord() {
 		let word = '';
@@ -189,11 +193,11 @@ class Lexer {
 		console.log('debug:getWord():', word);
 
 		const token = this.checkReservedWord(word);
-		if (token !== TokenEnum.TokenNone) {
+		if (token !== Token.TokenNone) {
 			return [token, null];
 		}
 
-		return [TokenEnum.TokenIdentifier, word];
+		return [Token.TokenIdentifier, word];
 	}
 
 	getNumber() {
@@ -237,7 +241,7 @@ class Lexer {
         // 如果不是小数或者科学计数法就直接返回
         if (this.pos === this.end
             || this.getChar() !== '.' && this.getChar() !== 'e' && this.getChar() !== 'E') {
-            return [TokenEnum.TokenIntegerConstant, result];
+            return [Token.TokenIntegerConstant, result];
         }
 
         // 处理小数部分
@@ -275,12 +279,12 @@ class Lexer {
             this.increment();
         }
 
-        return [TokenEnum.TokenFPConstant, result];
+        return [Token.TokenFPConstant, result];
 	}
 
 	/* 从代码中获取一个Token，用于代码扫描过程 */
 	scanToken() {
-        let GotToken = TokenEnum.TokenNone;
+        let GotToken = Token.TokenNone;
 
 		while (this.pos !== this.end && this.isSpace(this.getChar())) {
 			if (this.getChar() === '\n') {
@@ -288,12 +292,12 @@ class Lexer {
 				this.line ++;
 				this.column = 0;
 
-				return TokenEnum.TokenEndOfLine;
+				return Token.TokenEndOfLine;
 			}
 		}
 
 		if (this.pos === this.end) {
-			return TokenEnum.TokenEOF;
+			return Token.TokenEOF;
 		}
 
 		if (this.isCIdentStart(this.getChar())) {
@@ -314,25 +318,77 @@ class Lexer {
                 GotToken = this.getCharacterConstant();
                 break;
             case '(':
-                GotToken = TokenEnum.TokenOpenBracket;
+                GotToken = Token.TokenOpenBracket;
                 break;
             case ')':
-                GotToken = TokenEnum.TokenCloseBracket;
+                GotToken = Token.TokenCloseBracket;
                 break;
             case '=':
-                GotToken = this.ifThen('=', TokenEnum.TokenEqual, TokenEnum.TokenAssign);
+                GotToken = this.ifThen('=', Token.TokenEqual, Token.TokenAssign);
                 break;
             case '+':
-                GotToken = this.ifThen2('=', TokenEnum.TokenAddAssign, '+', TokenEnum.TokenIncrement,
-                                            TokenEnum.TokenPlus);
+                GotToken = this.ifThen2('=', Token.TokenAddAssign, '+', Token.TokenIncrement,
+                                            Token.TokenPlus);
                 break;
             case '-':
-                GotToken = this.ifThen3('=', TokenEnum.TokenSubtractAssign, '>', TokenEnum.TokenArrow,
-                                            '-', TokenEnum.TokenDecrement, TokenEnum.TokenMinus);
+                GotToken = this.ifThen3('=', Token.TokenSubtractAssign, '>', Token.TokenArrow,
+                                            '-', Token.TokenDecrement, Token.TokenMinus);
                 break;
             case '*':
-                GotToken = this.ifThen('=', TokenEnum.TokenMultiplyAssign, TokenEnum.TokenAsterisk);
+                GotToken = this.ifThen('=', Token.TokenMultiplyAssign, Token.TokenAsterisk);
                 break;
+            case '/':
+                if (this.getChar() === '/' || this.getChar() === '*') {
+                    this.increment();
+                    this.skipComment();
+                } else {
+                    GotToken = this.ifThen('=', Token.TokenDivideAssign, Token.TokenSlash);
+                }
+                break;
+            case '%':
+                GotToken = this.ifThen('=', Token.TokenModulusAssign, Token.TokenModulus);
+                break;
+            case '<':
+                if (this.getChar() === '<' && this.getNextChar() === '=') {
+                    GotToken = Token.TokenShiftLeftAssign;
+                } else {
+                    GotToken = this.ifThen2('=', Token.TokenLessEqual, '<',
+                                                Token.TokenShiftLeft, Token.TokenLessThan);
+                }
+                break;
+            case '>':
+                if (this.getChar() === '>' && this.getNextChar() === '=') {
+                    GotToken = Token.TokenShiftRightAssign;
+                } else {
+                    GotToken = this.ifThen2('=', Token.TokenGreaterEqual, '>',
+                                                Token.TokenShiftRight, Token.TokenGreaterThan);
+                }
+                break;
+            case ';':
+                GotToken = Token.TokenSemicolon;
+                break;
+            case '&':
+                GotToken = this.ifThen2('=', Token.TokenArithmeticAndAssign, '&',
+                                                Token.TokenLogicalAnd, Token.TokenAmpersand);
+                break;
+            case '|':
+                GotToken = this.ifThen2('=', Token.TokenArithmeticOrAssign, '|',
+                                                Token.TokenLogicalOr, Token.TokenArithmeticOr);
+                break;
+            case '{':
+                GotToken = TokenLeftBrace;
+                break;
+            case '}':
+                GotToken = TokenRightBrace;
+                break;
+            case '[':
+                GotToken = TokenLeftSquareBracket;
+                break;
+            case ']':
+                GotToken = TokenRightSquareBracket;
+                break;
+            case '!':
+                GotToken = this.ifThen('=', Token.TokenNotEqual, Token.TokenUnaryNot);
         }
 	}
 }
