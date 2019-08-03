@@ -408,7 +408,36 @@ class Lexer {
         return charStr;
     }
 
-    skipComment(nextChar) {
+    skipComment(style) {
+        if (style === '*') {
+            while (this.pos !== this.end && (this.getChar(-1) !== '*' || this.getChar() !== '/')) {
+                if (this.getChar() === '\n') {
+                    this.line ++;
+                    this.column = 1;
+                }
+                this.increment();
+            }
+        } else {
+            while (this.pos !== this.end && this.getChar() !== '\n') {
+                this.increment();
+            }
+        }
+
+        if (this.pos === this.end) {
+            this.fail(`missing end of comment`);
+        }
+        this.increment();
+    }
+
+    skipLineCont() {
+        while (this.pos !== this.end && this.getChar() !== '\n') {
+            this.increment();
+        }
+
+        if (this.pos === this.end) {
+            this.fail(`missing end of line continuation`);
+        }
+        this.increment();
     }
 
 	/* 从代码中获取一个Token，用于代码扫描过程 */
@@ -473,7 +502,7 @@ class Lexer {
                 case '/':
                     if (this.getChar() === '/' || this.getChar() === '*') {
                         this.increment();
-                        this.skipComment();
+                        this.skipComment(this.getChar());
                     } else {
                         GotToken = this.ifThen('=', Token.TokenDivideAssign, Token.TokenSlash);
                     }
