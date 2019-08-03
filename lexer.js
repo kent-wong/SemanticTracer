@@ -316,6 +316,23 @@ class Lexer {
             case '(':
                 GotToken = TokenEnum.TokenOpenBracket;
                 break;
+            case ')':
+                GotToken = TokenEnum.TokenCloseBracket;
+                break;
+            case '=':
+                GotToken = this.ifThen('=', TokenEnum.TokenEqual, TokenEnum.TokenAssign);
+                break;
+            case '+':
+                GotToken = this.ifThen2('=', TokenEnum.TokenAddAssign, '+', TokenEnum.TokenIncrement,
+                                            TokenEnum.TokenPlus);
+                break;
+            case '-':
+                GotToken = this.ifThen3('=', TokenEnum.TokenSubtractAssign, '>', TokenEnum.TokenArrow,
+                                            '-', TokenEnum.TokenDecrement, TokenEnum.TokenMinus);
+                break;
+            case '*':
+                GotToken = this.ifThen('=', TokenEnum.TokenMultiplyAssign, TokenEnum.TokenAsterisk);
+                break;
         }
 	}
 }
