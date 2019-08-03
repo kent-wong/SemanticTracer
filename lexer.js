@@ -175,6 +175,12 @@ class Lexer {
         return this.getChar(1);
     }
 
+    // todo
+    fail(message) {
+        console.log(message);
+        process.exit(1);
+    }
+
 	/* 从当前扫描位置获取一个identifier，此identifier可能是保留关键字，也可能是变量名 
 	 * 此函数有两个返回值: 1. Token 2. identifier string(null for reserved words)
 	 * */
@@ -282,115 +288,286 @@ class Lexer {
         return [Token.TokenFPConstant, result];
 	}
 
+    /* 将普通字符串转换成C语言字符串 */
+    cStringify(str) {
+        /* C语言的字符串允许使用'\'后加回车来折行书写，但是'\'和回车不属于字符串本身 */
+        const strArray = [...str];
+        strArray.map((value, index, arr) => {
+            if (value === '\n') {
+                if (index > 0 && arr[index-1] === '\\') {
+                    arr[index] = undefined;
+                    arr[index-1] = undefined;
+                }
+                if (index > 1 && arr[index-1] === '\r' && arr[index-2] === '\\') {
+                    arr[index] = undefined;
+                    arr[index-1] = undefined;
+                    arr[index-2] = undefined;
+                }
+            }
+            return value;
+        });
+
+        /* 将字面转义字符转换成相应的字符，
+         * 例如：将长度为2的字符串"\n"转换成单字符'\n'
+         * */
+        strArray.map((value, index, array) => {
+            if (index === 0 || array[index-1] !== '\\') {
+                return value;
+            }
+            switch (value) {
+                case '\\':
+                case '\'':
+                case '\"':
+                    break;
+                case 'a':
+                    array[index] = '\a';
+                    break;
+                case 'b':
+                    array[index] = '\b';
+                    break;
+                case 'f':
+                    array[index] = '\f';
+                    break;
+                case 'n':
+                    array[index] = '\n';
+                    break;
+                case 'r':
+                    array[index] = '\r';
+                    break;
+                case 't':
+                    array[index] = '\t';
+                    break;
+                case 'v':
+                    array[index] = '\v';
+                    break;
+                default:
+                    break;
+            }
+
+            array[index-1] = undefined;
+        });
+
+        return strArray.join('');
+    }
+
+    getStringConstant(endChar) {
+        let esc = false;
+        const start = this.pos;
+
+        while (this.pos !== this.end && (this.getChar() !== endChar || esc)) {
+            if (esc) {
+                esc = false;
+                if (this.getChar() === '\n') {
+                    this.line ++;
+                    this.column = 1;
+                }
+            } else if (this.getChar() === '\\') {
+                esc = true;
+            }
+            this.increment();
+        }
+
+        const str = this.source.substring(start, this.pos);
+        if (this.pos === this.end) {
+            this.fail(`missing '"' at the end of string ${str}`);
+        }
+
+        this.increment();
+        return this.cStringify(str);
+    }
+
+    getCharacterConstant() {
+        let esc = false;
+        const start = this.pos;
+        const endChar = '\'';
+
+        while (this.pos !== this.end && (this.getChar() !== endChar || esc)) {
+            if (esc) {
+                esc = false;
+                if (this.getChar() === '\n') {
+                    this.line ++;
+                    this.column = 1;
+                }
+            } else if (this.getChar() === '\\') {
+                esc = true;
+            }
+            this.increment();
+        }
+
+        const str = this.source.substring(start, this.pos);
+        if (this.pos === this.end) {
+            this.fail(`missing "'" at the end of character ${str}`);
+        }
+
+        this.increment();
+        const charStr = this.cStringify(str);
+        if (charStr.length !== 1) {
+            this.fail(`'${charStr}' is NOT a character`);
+        }
+
+        return charStr;
+    }
+
+    skipComment(nextChar) {
+    }
+
 	/* 从代码中获取一个Token，用于代码扫描过程 */
 	scanToken() {
         let GotToken = Token.TokenNone;
+        let GotValue = null;
 
-		while (this.pos !== this.end && this.isSpace(this.getChar())) {
-			if (this.getChar() === '\n') {
-				this.pos ++;
-				this.line ++;
-				this.column = 0;
+        do {
+            while (this.pos !== this.end && this.isSpace(this.getChar())) {
+                if (this.getChar() === '\n') {
+                    this.pos ++;
+                    this.line ++;
+                    this.column = 0;
 
-				return Token.TokenEndOfLine;
-			}
-		}
-
-		if (this.pos === this.end) {
-			return Token.TokenEOF;
-		}
-
-		if (this.isCIdentStart(this.getChar())) {
-            return this.getWord();
-		}
-
-        if (this.isDigit(this.getChar())) {
-            return this.getNumber();
-        }
-
-        const lastChar = this.getChar();
-        this.increment();
-        switch (lastChar) {
-            case '"':
-                GotToken = this.getStringConstant('"');
-                break;
-            case '\'':
-                GotToken = this.getCharacterConstant();
-                break;
-            case '(':
-                GotToken = Token.TokenOpenBracket;
-                break;
-            case ')':
-                GotToken = Token.TokenCloseBracket;
-                break;
-            case '=':
-                GotToken = this.ifThen('=', Token.TokenEqual, Token.TokenAssign);
-                break;
-            case '+':
-                GotToken = this.ifThen2('=', Token.TokenAddAssign, '+', Token.TokenIncrement,
-                                            Token.TokenPlus);
-                break;
-            case '-':
-                GotToken = this.ifThen3('=', Token.TokenSubtractAssign, '>', Token.TokenArrow,
-                                            '-', Token.TokenDecrement, Token.TokenMinus);
-                break;
-            case '*':
-                GotToken = this.ifThen('=', Token.TokenMultiplyAssign, Token.TokenAsterisk);
-                break;
-            case '/':
-                if (this.getChar() === '/' || this.getChar() === '*') {
-                    this.increment();
-                    this.skipComment();
-                } else {
-                    GotToken = this.ifThen('=', Token.TokenDivideAssign, Token.TokenSlash);
+                    return [Token.TokenEndOfLine, null];
                 }
-                break;
-            case '%':
-                GotToken = this.ifThen('=', Token.TokenModulusAssign, Token.TokenModulus);
-                break;
-            case '<':
-                if (this.getChar() === '<' && this.getNextChar() === '=') {
-                    GotToken = Token.TokenShiftLeftAssign;
-                } else {
-                    GotToken = this.ifThen2('=', Token.TokenLessEqual, '<',
-                                                Token.TokenShiftLeft, Token.TokenLessThan);
-                }
-                break;
-            case '>':
-                if (this.getChar() === '>' && this.getNextChar() === '=') {
-                    GotToken = Token.TokenShiftRightAssign;
-                } else {
-                    GotToken = this.ifThen2('=', Token.TokenGreaterEqual, '>',
-                                                Token.TokenShiftRight, Token.TokenGreaterThan);
-                }
-                break;
-            case ';':
-                GotToken = Token.TokenSemicolon;
-                break;
-            case '&':
-                GotToken = this.ifThen2('=', Token.TokenArithmeticAndAssign, '&',
-                                                Token.TokenLogicalAnd, Token.TokenAmpersand);
-                break;
-            case '|':
-                GotToken = this.ifThen2('=', Token.TokenArithmeticOrAssign, '|',
-                                                Token.TokenLogicalOr, Token.TokenArithmeticOr);
-                break;
-            case '{':
-                GotToken = TokenLeftBrace;
-                break;
-            case '}':
-                GotToken = TokenRightBrace;
-                break;
-            case '[':
-                GotToken = TokenLeftSquareBracket;
-                break;
-            case ']':
-                GotToken = TokenRightSquareBracket;
-                break;
-            case '!':
-                GotToken = this.ifThen('=', Token.TokenNotEqual, Token.TokenUnaryNot);
-        }
-	}
+            }
+
+            if (this.pos === this.end) {
+                return [Token.TokenEOF, null];
+            }
+
+            if (this.isCIdentStart(this.getChar())) {
+                return this.getWord();
+            }
+
+            if (this.isDigit(this.getChar())) {
+                return this.getNumber();
+            }
+
+            const lastChar = this.getChar();
+            this.increment();
+            switch (lastChar) {
+                case '"':
+                    GotToken = Token.TokenStringConstant;
+                    GotValue = this.getStringConstant('"');
+                    break;
+                case '\'':
+                    GotToken = Token.TokenCharacterConstant;
+                    GotValue = this.getCharacterConstant();
+                    break;
+                case '(':
+                    GotToken = Token.TokenOpenBracket;
+                    break;
+                case ')':
+                    GotToken = Token.TokenCloseBracket;
+                    break;
+                case '=':
+                    GotToken = this.ifThen('=', Token.TokenEqual, Token.TokenAssign);
+                    break;
+                case '+':
+                    GotToken = this.ifThen2('=', Token.TokenAddAssign, '+', Token.TokenIncrement,
+                                                Token.TokenPlus);
+                    break;
+                case '-':
+                    GotToken = this.ifThen3('=', Token.TokenSubtractAssign, '>', Token.TokenArrow,
+                                                '-', Token.TokenDecrement, Token.TokenMinus);
+                    break;
+                case '*':
+                    GotToken = this.ifThen('=', Token.TokenMultiplyAssign, Token.TokenAsterisk);
+                    break;
+                case '/':
+                    if (this.getChar() === '/' || this.getChar() === '*') {
+                        this.increment();
+                        this.skipComment();
+                    } else {
+                        GotToken = this.ifThen('=', Token.TokenDivideAssign, Token.TokenSlash);
+                    }
+                    break;
+                case '%':
+                    GotToken = this.ifThen('=', Token.TokenModulusAssign, Token.TokenModulus);
+                    break;
+                case '<':
+                    if (this.getChar() === '<' && this.getNextChar() === '=') {
+                        this.increment(2);
+                        GotToken = Token.TokenShiftLeftAssign;
+                    } else {
+                        GotToken = this.ifThen2('=', Token.TokenLessEqual, '<',
+                                                    Token.TokenShiftLeft, Token.TokenLessThan);
+                    }
+                    break;
+                case '>':
+                    if (this.getChar() === '>' && this.getNextChar() === '=') {
+                        this.increment(2);
+                        GotToken = Token.TokenShiftRightAssign;
+                    } else {
+                        GotToken = this.ifThen2('=', Token.TokenGreaterEqual, '>',
+                                                    Token.TokenShiftRight, Token.TokenGreaterThan);
+                    }
+                    break;
+                case ';':
+                    GotToken = Token.TokenSemicolon;
+                    break;
+                case '&':
+                    GotToken = this.ifThen2('=', Token.TokenArithmeticAndAssign, '&',
+                                                    Token.TokenLogicalAnd, Token.TokenAmpersand);
+                    break;
+                case '|':
+                    GotToken = this.ifThen2('=', Token.TokenArithmeticOrAssign, '|',
+                                                    Token.TokenLogicalOr, Token.TokenArithmeticOr);
+                    break;
+                case '{':
+                    GotToken = TokenLeftBrace;
+                    break;
+                case '}':
+                    GotToken = TokenRightBrace;
+                    break;
+                case '[':
+                    GotToken = TokenLeftSquareBracket;
+                    break;
+                case ']':
+                    GotToken = TokenRightSquareBracket;
+                    break;
+                case '!':
+                    GotToken = this.ifThen('=', Token.TokenNotEqual, Token.TokenUnaryNot);
+                    break;
+                case '^':
+                    GotToken = this.ifThen('=', Token.TokenArithmeticExorAssign, Token.TokenArithmeticExor);
+                    break;
+                case '~':
+                    GotToken = TokenUnaryExor;
+                    break;
+                case ',':
+                    GotToken = TokenComma;
+                    break;
+                case '.':
+                    if (this.getChar() === '.' && this.getNextChar() === '.') {
+                        this.increment(2);
+                        GotToken = Token.TokenEllipsis;
+                    } else {
+                        GotToken = Token.TokenDot;
+                    }
+                    break;
+                case '?':
+                    GotToken = TokenQuestionMark;
+                    break;
+                case ':':
+                    GotToken = TokenColon;
+                    break;
+                case '\\':
+                    if (this.getChar() === ' ' || this.getChar() === '\n') {
+                        this.increment();
+                        this.skipLineCont(this.getChar());
+                    } else {
+                        this.fail(`illegal character '${lastChar}'`);
+                    }
+                    break;
+                default:
+                    this.fail(`illegal character '${lastChar}'`);
+                    break;
+            }
+        } while (GotToken === Token.TokenNone);
+
+        return [GotToken, GotValue];
+    } 
+
+
+
+
 }
 
 //console.log(ReservedWords['abc'] === undefined);
