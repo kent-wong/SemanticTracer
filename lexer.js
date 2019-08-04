@@ -52,6 +52,8 @@ class Lexer {
 		this.column = 1;
 		this.pos = 0
 		this.end = this.source.length;
+        this.tokenInfo = [];
+        this.tokenIndex = 0;
 	}
 
 	checkReservedWord(word) {
@@ -599,21 +601,50 @@ class Lexer {
         return [GotToken, GotValue];
     } 
 
+    tokenize() {
+        let token, value, lastPos;
+        this.tokenInfo = [];
+        this.tokenIndex = 0;
+        do {
+            lastPos = this.pos;
+            [token, value] = lexer.scanToken();
 
+            // 放入队列
+            this.tokenInfo.push({token: token, value: value, start: lastPos, end: this.pos});
 
-
-}
-
-//console.log(ReservedWords['abc'] === undefined);
-const lexer = new Lexer('test.c');
-let token, value;
-
-while (lexer.pos !== lexer.end) {
-    [token, value] = lexer.scanToken();
-    console.log(`token:${Token.getTokenName(token)}`);
-    if (value !== null && value !== undefined) {
-        console.log(`value:${value}`);
+            // wk_debug
+            console.log(`token:${Token.getTokenName(token)}`);
+            if (value !== null && value !== undefined) {
+                console.log(`value:${value}`);
+            }
+            console.log();
+        } while (token !== Token.TokenEOF);
     }
-    console.log();
+
+    getToken(forward) {
+        if (forward === undefined) {
+            forward = true;
+        }
+
+        if (this.tokenInfo.length === 0) {
+            this.tokenize();
+        }
+        
+        if (this.tokenIndex >= this.tokenInfo.length) {
+            return [Token.TokenEOF, null];
+        }
+
+        const tokenInfo = this.tokenInfo[this.tokenIndex];
+        if (forward) {
+            this.tokenIndex ++;
+        }
+
+        return [tokenInfo.token, tokenInfo.value];
+    }
+
+    peekToken() {
+        return this.getToken(false);
+    }
 }
 
+module.exports = Lexer;
