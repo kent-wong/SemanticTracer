@@ -164,11 +164,11 @@ class Lexer {
 			n = 0;
 		}
 
-		if (n >= this.end) {
+		if ((this.pos + n) >= this.end) {
             return 0;
 		}
 
-		return this.source[n];
+		return this.source[this.pos + n];
 	}
 
     getNextChar() {
@@ -189,14 +189,18 @@ class Lexer {
 		const startIndex = this.pos;
 
 		do {
-			this.increment(1);
-		} while (this.pos !== this.end && this.isCIdent(this.source[this.pos]));
+			this.increment();
+		} while (this.pos !== this.end && this.isCIdent(this.getChar()));
 
 		word = this.source.substring(startIndex, this.pos);
-		Identifier.store(word);
+		//Identifier.store(word);
 
 		// wk_debug
-		console.log('debug:getWord():', word);
+		console.log(`debug:getWord():${word}`);
+
+        if (this.pos === this.end) {
+            this.fail(`reach EOF while scanning identifier "${word}"`);
+        }
 
 		const token = this.checkReservedWord(word);
 		if (token !== Token.TokenNone) {
@@ -454,6 +458,7 @@ class Lexer {
 
                     return [Token.TokenEndOfLine, null];
                 }
+                this.increment();
             }
 
             if (this.pos === this.end) {
@@ -601,5 +606,14 @@ class Lexer {
 
 //console.log(ReservedWords['abc'] === undefined);
 const lexer = new Lexer('test.c');
-console.log(lexer.isDigit('6'));
-console.log(lexer.isAlpha('6'));
+let token, value;
+
+[token, value] = lexer.scanToken();
+console.log(`token:${token}, value:${value}`);
+
+[token, value] = lexer.scanToken();
+console.log(`token:${token}, value:${value}`);
+
+[token, value] = lexer.scanToken();
+console.log(`token:${token}, value:${value}`);
+

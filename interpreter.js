@@ -106,7 +106,8 @@ const TokenEnum = {
 	TokenBackSlash: 0x60
 };
 
-exports = TokenEnum;
+module.exports = TokenEnum;
 
 console.log('at the end of interpreter.js');
+console.log(TokenEnum.TokenIntType);
 

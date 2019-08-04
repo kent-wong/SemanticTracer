@@ -21,4 +21,4 @@ const BaseTypeEnum = {
 	TypeIdentifier: 20
 };
 
-exports = BaseTypeEnum;
+module.exports = BaseTypeEnum;

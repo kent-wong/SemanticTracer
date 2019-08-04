@@ -8,4 +8,4 @@ class Identifier {
 	}
 };
 
-exports = new Identifier();
+module.exports = new Identifier();
