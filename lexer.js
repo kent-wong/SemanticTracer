@@ -545,16 +545,16 @@ class Lexer {
                                                     Token.TokenLogicalOr, Token.TokenArithmeticOr);
                     break;
                 case '{':
-                    GotToken = TokenLeftBrace;
+                    GotToken = Token.TokenLeftBrace;
                     break;
                 case '}':
-                    GotToken = TokenRightBrace;
+                    GotToken = Token.TokenRightBrace;
                     break;
                 case '[':
-                    GotToken = TokenLeftSquareBracket;
+                    GotToken = Token.TokenLeftSquareBracket;
                     break;
                 case ']':
-                    GotToken = TokenRightSquareBracket;
+                    GotToken = Token.TokenRightSquareBracket;
                     break;
                 case '!':
                     GotToken = this.ifThen('=', Token.TokenNotEqual, Token.TokenUnaryNot);
@@ -563,10 +563,10 @@ class Lexer {
                     GotToken = this.ifThen('=', Token.TokenArithmeticExorAssign, Token.TokenArithmeticExor);
                     break;
                 case '~':
-                    GotToken = TokenUnaryExor;
+                    GotToken = Token.TokenUnaryExor;
                     break;
                 case ',':
-                    GotToken = TokenComma;
+                    GotToken = Token.TokenComma;
                     break;
                 case '.':
                     if (this.getChar() === '.' && this.getNextChar() === '.') {
@@ -577,10 +577,10 @@ class Lexer {
                     }
                     break;
                 case '?':
-                    GotToken = TokenQuestionMark;
+                    GotToken = Token.TokenQuestionMark;
                     break;
                 case ':':
-                    GotToken = TokenColon;
+                    GotToken = Token.TokenColon;
                     break;
                 case '\\':
                     if (this.getChar() === ' ' || this.getChar() === '\n') {
@@ -608,12 +608,12 @@ class Lexer {
 const lexer = new Lexer('test.c');
 let token, value;
 
-[token, value] = lexer.scanToken();
-console.log(`token:${token}, value:${value}`);
-
-[token, value] = lexer.scanToken();
-console.log(`token:${token}, value:${value}`);
-
-[token, value] = lexer.scanToken();
-console.log(`token:${token}, value:${value}`);
+while (lexer.pos !== lexer.end) {
+    [token, value] = lexer.scanToken();
+    console.log(`token:${Token.getTokenName(token)}`);
+    if (value !== null && value !== undefined) {
+        console.log(`value:${value}`);
+    }
+    console.log();
+}
 
