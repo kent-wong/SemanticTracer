@@ -1,3 +1,27 @@
+const baseTypeNames = [
+	"TypeInvalid",
+	"TypeVoid",
+    "TypeInt",
+    "TypeShort",
+    "TypeChar",
+    "TypeLong",
+    "TypeUnsignedInt",
+    "TypeUnsignedShort",
+    "TypeUnsignedChar",
+    "TypeUnsignedLong",
+    "TypeFP",
+    "TypeFunction",
+    "TypeMacro",
+    "TypePointer",
+    "TypeArray",
+    "TypeStruct",
+    "TypeUnion",
+    "TypeEnum",
+    "TypeGotoLabel",
+    "Type_Type",
+	"TypeIdentifier"
+];
+
 const BaseTypeEnum = {
 	TypeVoid: 1,                   /* no type */
     TypeInt: 2,                    /* integer */
@@ -18,7 +42,12 @@ const BaseTypeEnum = {
     TypeEnum: 17,                   /* enumerated integer type */
     TypeGotoLabel: 18,              /* a label we can "goto" */
     Type_Type: 19,                  /* a type for storing types */
-	TypeIdentifier: 20
+	TypeIdentifier: 20,
+
+	getTypeName: function(type) {
+		return baseTypeNames[type];
+	}
 };
 
 module.exports = BaseTypeEnum;
+console.log(BaseTypeEnum.getTypeName(BaseTypeEnum.TypeArray));
