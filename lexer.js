@@ -197,9 +197,6 @@ class Lexer {
 		word = this.source.substring(startIndex, this.pos);
 		//Identifier.store(word);
 
-		// wk_debug
-		console.log(`debug:getWord():${word}`);
-
         if (this.pos === this.end) {
             this.fail(`reach EOF while scanning identifier "${word}"`);
         }

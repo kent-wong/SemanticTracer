@@ -1,20 +1,20 @@
 const BaseType = require('./basetype');
 
 class ValueType {
-    constructor (baseType, props) {
-        if (props === undefined) {
-            props = {};
-        }
-
+    constructor (baseType, parentType, arrayLength, ident) {
         this.baseType = baseType;
-        this.arrayLength = props.arrayLength !== undefined ? props.arrayLength : 0;
-        this.totalSize = 0;
-        this.alignBytes = 0;
-        this.isStatic = false;
+        this.arrayLength = arrayLength !== undefined ? arrayLength : 0;
+        this.parentType = parentType !== undefined ? parentType : null;
+        this.siblingIndex = 0;
+        this.childrenTypes = [];
 
-        if (props.identifier !== undefined) {
-            this.identifier = props.identifier;
-        }
+        this.ident = ident !== undefined ? ident : null;
+        this.isStatic = false;
+    }
+
+    addChild(child) {
+        child.siblingIndex = this.childrenTypes.length;
+        this.childrenTypes.push(child);
     }
 }
 

@@ -18,20 +18,20 @@ class Scopes {
     constructor() {
         this.global = new Scope('global');
         this.locals = [];
-        this.currentScope = this.global;
+        this.current = this.global;
     }
 
     pushScope(scope) {
-        this.currentScope = scope;
+        this.current = scope;
         return this.locals.unshift(scope);
     }
 
     popScope() {
         const old = this.locals.shift();
         if (this.locals.length > 0) {
-            this.currentScope = this.locals[0];
+            this.current = this.locals[0];
         } else {
-            this.currentScope = this.global;
+            this.current = this.global;
         }
     }
 
@@ -59,8 +59,8 @@ class Scopes {
 }
 
 const sc = new Scopes();
-console.log(sc.currentScope);
+console.log(sc.current === sc.global);
 sc.pushScope(new Scope('func1'));
-console.log(sc.currentScope);
+console.log(sc.current);
 
 module.exports = Scopes;
