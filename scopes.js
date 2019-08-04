@@ -3,6 +3,7 @@ class Scope {
     constructor(name) {
         this.name = name;
         this.idents = new Map();
+        this.types = new Map();
     }
 
     getIdent(name) {
@@ -11,6 +12,14 @@ class Scope {
 
     setIdent(name, value) {
         this.idents.set(name, value);
+    }
+
+    getType(name) {
+        return this.types.get(name);
+    }
+
+    setType(name, value) {
+        this.types.set(name, value);
     }
 }
 
