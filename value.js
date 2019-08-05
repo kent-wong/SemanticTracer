@@ -1,17 +1,11 @@
 
 class Value {
-    constructor(type, value, props) {
-        if (props === undefined) {
-            props = {};
-        }
-
+    constructor(ident, type, value, isLValue, lvalueFrom) {
+        this.ident = ident;
         this.type = type;
         this.value = value;
-        this.isLValue = props.isLValue !== undefined ? props.isLValue : false;
-
-        if (props.lvalueFrom !== undefined) {
-            this.lvalueFrom = props.lvalueFrom;
-        }
+        this.isLValue = isLValue !== undefined ? isLValue : false;
+        this.lvalueFrom = lvalueFrom !== undefined ? lvalueFrom : null;
     }
 }
 

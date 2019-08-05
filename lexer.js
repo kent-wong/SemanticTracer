@@ -604,7 +604,7 @@ class Lexer {
         this.tokenIndex = 0;
         do {
             lastPos = this.pos;
-            [token, value] = lexer.scanToken();
+            [token, value] = this.scanToken();
 
             // 放入队列
             this.tokenInfo.push({token: token, value: value, start: lastPos, end: this.pos});
@@ -618,7 +618,7 @@ class Lexer {
         } while (token !== Token.TokenEOF);
     }
 
-    getToken(forward) {
+    getTokenValue(forward) {
         if (forward === undefined) {
             forward = true;
         }
@@ -639,8 +639,18 @@ class Lexer {
         return [tokenInfo.token, tokenInfo.value];
     }
 
-    peekToken() {
+    peekTokenValue() {
         return this.getToken(false);
+    }
+
+    getToken() {
+        const [token, value] = this.getTokenValue();
+        return token;
+    }
+
+    peekToken() {
+        const [token, value] = this.peekTokenValue();
+        return token;
     }
 }
 

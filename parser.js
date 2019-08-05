@@ -4,6 +4,7 @@ const ValueType = require('./valuetype');
 const Value = require('./value');
 const Lexer = require('./lexer');
 const Scopes = require('./scopes');
+const platform = require('./platform');
 
 class Parser {
     constructor(filename) {
@@ -33,6 +34,8 @@ class Parser {
         this.CharPtrType = new ValueType(BaseType.TypePointer, this.CharType);
         this.CharPtrPtrType = new ValueType(BaseType.TypePointer, this.CharPtrType);
         this.VoidPtrType = new ValueType(BaseType.TypePointer, this.VoidType);
+
+        this.structNameCounter = 1000;
     }
 
     stateSave() {
@@ -41,6 +44,12 @@ class Parser {
 
     stateRestore(parserInfo) {
         this.lexer.tokenIndex = parserInfo.tokenIndex;
+    }
+
+    makeStructName() {
+        const name = String(this.structNameCounter) + '_struct_name';
+        this.structNameCounter ++;
+        return name;
     }
 
     parseTypeFront() {
@@ -62,22 +71,116 @@ class Parser {
             if (nextToken !== Token.IntType && nextToken !== Token.CharType &&
                     nextToken !== Token.ShortType && nextToken !== Token.LongType) {
                 if (isUnsigned) {
-                    return this.UnsignedIntType;
+                    resultType = this.UnsignedIntType;
                 } else {
-                    return this.IntType;
+                    resultType = this.IntType;
                 }
+
+                return resultType;
             }
 
             token = this.lexer.getToken();
         }
 
-        switch()
+        switch(token) {
+            case Token.TokenIntType:
+                resultType = isUnsigned ? this.UnsignedIntType : this.IntType;
+                break;
+            case Token.TokenShortType:
+                resultType = isUnsigned ? this.UnsignedShortType : this.ShortType;
+                break;
+            case Token.TokenCharType:
+                resultType = isUnsigned ? this.UnsignedCharType : this.CharType;
+                break;
+            case Token.TokenLongType:
+                resultType = isUnsigned ? this.UnsignedLongType : this.LongType;
+                break;
+            case Token.TokenFloatType:
+            case Token.TokenDoubleType:
+                resultType = this.FPType;
+                break;
+            case Token.TokenVoidType:
+                resultType = this.VoidType;
+                break;
+            case Token.TokenStructType:
+            case Token.TokenUnionType:
+                resultType = this.parseTypeStruct();
+                break;
+            case Token.TokenEnumType:
+                resultType = this.parseTypeEnum();
+                break;
+            case Token.TokenIdentifier:
+                // todo
+                break;
+            default:
+                this.stateRestore(oldState);
+        }
 
-
-
+        return resultType;
     } // end of parseTypeFront()
 
+    parseTypeStruct() {
+        let token = Token.TokenNone;
+        let structName;
 
+        [token, value] = this.peekTokenValue();
+        if (token === Token.TokenIdentifier) {
+            // 获取structure名字
+            [token, structName] = this.getTokenValue();
+            token = this.peekToken();
+        } else {
+            structName = this.makeStructName();
+        }
+
+        let structType = this.scopes.global.getType(structName);
+        if (structType === undefined) {
+            // 只允许structure在全局命名空间定义
+            if (this.scopes.current !== this.scopes.global) {
+                platform.programFail(`struct ${structName} is NOT defined in global namespace.`);
+            }
+
+            // 添加struct xxxx类型，暂时无成员
+            structType = new ValueType(BaseType.TypeStruct, null, 0, structName);
+            this.scopes.global.setType(structName, structType);
+        }
+
+        if (token !== Token.TokenLeftBrace) {
+            // 这里struct可能是已经完整定义的，也可能是forward declaration
+            // 也就是说members数组可能为空
+            return structType;
+        } else if (structType.members.length > 0) {
+            platform.programFail(`struct ${structName} is already defined.`);
+        }
+
+        this.getToken();
+
+        let memberType, memberIdent;
+        do {
+            // parse struct member
+            [memberType, memberIdent] = this.parseDeclaration();
+            //this.handleDeclaration(memberIdent, memberType);
+            let value = new Value(memberIdent, memberType);
+            structType.members.push(value);
+        } while (this.peekToken() !== Token.TokenRightBrace);
+
+        this.getToken();
+        return structType;
+    } // end of parseTypeStruct()
+
+    parseIdentPart(valueType) {
+    }
+
+    parseDeclaration() {
+    }
+
+    handleDeclaration(ident, type, initValue, isLValue, lvalueFrom) {
+        if (this.scopes.current.get(ident) !== undefined) {
+            platform.programFail(`${ident} has already been declared.`);
+        }
+
+        const value = new Value(ident, type, initValue, isLValue, lvalueFrom);
+        this.scopes.current.set(ident, value);
+    }
 
 
 

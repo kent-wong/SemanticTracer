@@ -10,12 +10,22 @@ class ValueType {
 
         this.ident = ident !== undefined ? ident : null;
         this.isStatic = false;
+
+        this.members = [];
     }
 
     addChild(child) {
         child.siblingIndex = this.childrenTypes.length;
         this.childrenTypes.push(child);
     }
+
+    makePointerType() {
+        return new ValueType(BaseType.TypePointer, this);
+    }
 }
+
+const aType = new ValueType(BaseType.TypeInt);
+const aPointer = aType.makePointerType();
+//console.log(aPointer);
 
 module.exports = ValueType;
