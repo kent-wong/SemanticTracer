@@ -37,6 +37,13 @@ class Parser {
         this.VoidPtrType = new ValueType(BaseType.TypePointer, this.VoidType);
 
         this.structNameCounter = 1000;
+
+        this.astRoot = {
+            astType: Ast.AstStatements,
+            astStatements: []
+        };
+
+        this.current = this.astRoot;
     }
 
     stateSave() {
@@ -117,6 +124,12 @@ class Parser {
                 this.stateRestore(oldState);
         }
 
+        if (resultType !== null) {
+            while (this.forwardTokenIf(Token.TokenAsterisk)) {
+                resultType = resultType.makePointerType();
+            }
+        }
+
         return resultType;
     } // end of parseTypeFront()
 
@@ -124,7 +137,7 @@ class Parser {
     } // end of parseTypeBack()
 
 
-    parseTypeStruct() {
+    parseTypeStruct(astList) {
         let token = Token.TokenNone;
         let structName;
 
@@ -139,39 +152,48 @@ class Parser {
 
         let structType = this.scopes.global.getType(structName);
         if (structType === undefined) {
-            // 只允许structure在全局命名空间定义
-            if (this.scopes.current !== this.scopes.global) {
-                platform.programFail(`struct ${structName} is NOT defined in global namespace.`);
+            if (token === Token.TokenIdentifier) {
+                platform.programFail(`struct ${structName} is NOT defined.`);
             }
-
             // 添加struct xxxx类型，暂时无成员
             structType = new ValueType(BaseType.TypeStruct, null, 0, structName);
             this.scopes.global.setType(structName, structType);
         }
 
         if (token !== Token.TokenLeftBrace) {
-            // 这里struct可能是已经完整定义的，也可能是forward declaration
-            // 也就是说members数组可能为空
-            return structType;
-        } else if (structType.members.length > 0) {
+            return structType; // 不是struct定义语句
+        }
+        
+        // 以下为struct定义处理
+        // 只允许structure在全局命名空间定义
+        if (this.scopes.current !== this.scopes.global) {
+            platform.programFail(`struct ${structName} is NOT defined in global namespace.`);
+        }
+
+        if (structType.members.length > 0) {
             platform.programFail(`struct ${structName} is already defined.`);
         }
 
-        this.getToken();
+        // 生成structure对应的AST
+        const astStructDef = {
+            astType: Ast.AstStruct,
+            name: structName,
+            astMembers: []
+        };
 
-        let memberType, memberIdent;
+        let astMember = null;
+        this.getToken();
         do {
-            // parse struct member
-            [memberType, memberIdent] = this.parseDeclaration();
-            //this.handleDeclaration(memberIdent, memberType);
-            let value = new Value(memberIdent, memberType);
-            structType.members.push(value);
+            astMember = this.parseDeclaration(astStructDef.astMembers);
+            astStructDef.astMembers.push(astMember);
         } while (this.peekToken() !== Token.TokenRightBrace);
 
+        astList.push(astStructDef);
         this.getToken();
         return structType;
     } // end of parseTypeStruct()
 
+    /*
     parseIdentPart(valueType) {
         let done = false;
         let token, value;
@@ -209,22 +231,67 @@ class Parser {
 
         return [valueType, ident];
     } // end of parseIdentPart()
+    */
 
-    parseDeclaration() {
-    }
-
-    handleDeclaration(ident, type, initValue, isLValue, lvalueFrom) {
-        if (this.scopes.current.get(ident) !== undefined) {
-            platform.programFail(`${ident} has already been declared.`);
+    /* 解析声明语句，返回AST */
+    parseDeclaration(astList) {
+        let token, value;
+        let valueType = this.parseTypeFront();
+        if (valueType === null) {
+            platform.programFail(`internal error: parseDeclaration(${firstToken}): parseTypeFront()`);
         }
 
-        const value = new Value(ident, type, initValue, isLValue, lvalueFrom);
-        this.scopes.current.set(ident, value);
+        do {
+            // 由此声明语句生成的AST
+            const astResult = {
+                astType: Ast.AstDeclaration,
+                valueType: null,
+                ident: null,
+                arrayIndex: [],
+                astRHS: null
+            };
+
+            [token, value] = this.getTokenValue();
+            if (token !== Token.TokenIdentifier) {
+                platform.programFail(`need a identifier here, instead got token type ${token}`);
+            }
+
+            astResult.valueType = valueType;
+            astResult.ident = value;
+
+            // 处理数组下标
+            while (this.forwardTokenIf(Token.TokenLeftSquareBracket)) {
+                let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
+                astResult.arrayIndex.push(astIndex);
+            }
+
+            // 处理赋值
+            if (this.forwardTokenIf(Token.TokenAssign)) {
+                let astRHS = this.parseExpression(Token.TokenComma);
+                astResult.astRHS = astRHS;
+            }
+
+            // 添加到当前语句块
+            astList.push(astResult);
+        } while (this.forwardTokenIf(Token.TokenComma));
+
+        if (!this.forwardTokenIf(Token.TokenSemicolon)) {
+            platform.programFail(`missing ";" at the end of declaration statement.`);
+        }
+    } // end of parseDeclaration(astList)
+
+    parseAssignment(astList) {
     }
 
+    parseExpression(stopAfter) {
+    }
 
+    parseStatement(astList) {
+    }
 
-
+    parseStatements(astList) {
+    }
+    
 }
 
 const parser = new Parser('./test.c');

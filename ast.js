@@ -2,7 +2,7 @@ const Token = require('./interpreter');
 
 const AstEnum = {
     AstNone: 0,
-    AstOperator: 1,
+    AstToken: 1,
     AstDeclaration: 2,
     AstAssign: 3,
     AstExpression: 4,
@@ -19,12 +19,13 @@ const AstEnum = {
     AstIndexOp: 15,
     AstMemberOp: 16,
     AstPtrMemberOp: 17,
-    AstIdentifier: 18
+    AstIdentifier: 18,
+    AstStatements: 19
 };
 
 const AstNames = [
     "AstNone",
-    "AstOperator",
+    "AstToken",
     "AstDeclaration",
     "AstAssign",
     "AstExpression",
@@ -41,7 +42,8 @@ const AstNames = [
     "AstIndexOp",
     "AstMemberOp",
     "AstPtrMemberOp",
-    "AstIdentifier"
+    "AstIdentifier",
+    "AstStatements"
 ];
 
 console.log(AstNames[AstEnum.AstIdentifier]);

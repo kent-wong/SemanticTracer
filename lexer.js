@@ -648,6 +648,20 @@ class Lexer {
         return token;
     }
 
+    forwardTokenIf(token) {
+        if (this.tokenIndex >= this.tokenInfo.length) {
+            return token === Token.TokenEOF ? true : false;
+        }
+
+        const tokenInfo = this.tokenInfo[this.tokenIndex];
+        if (tokenInfo.token === token) {
+            this.tokenIndex ++;
+            return true;
+        }
+
+        return false;
+    }
+
     peekToken() {
         const [token, value] = this.peekTokenValue();
         return token;

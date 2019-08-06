@@ -22,10 +22,17 @@ class ValueType {
     makePointerType() {
         return new ValueType(BaseType.TypePointer, this);
     }
+
+    makeArrayType(arrayLength) {
+        return new ValueType(BaseType.TypeArray, this, arrayLength);
+    }
 }
 
 const aType = new ValueType(BaseType.TypeInt);
-const aPointer = aType.makePointerType();
+//const aPointer = aType.makePointerType();
 //console.log(aPointer);
+const aArray = aType.makeArrayType(10);
+const aArray2 = aArray.makeArrayType(2);
+console.log(aArray2);
 
 module.exports = ValueType;
