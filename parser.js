@@ -5,6 +5,7 @@ const Value = require('./value');
 const Lexer = require('./lexer');
 const Scopes = require('./scopes');
 const platform = require('./platform');
+const Ast = require('./ast');
 
 class Parser {
     constructor(filename) {
@@ -119,6 +120,10 @@ class Parser {
         return resultType;
     } // end of parseTypeFront()
 
+    parseTypeBack(valueType) {
+    } // end of parseTypeBack()
+
+
     parseTypeStruct() {
         let token = Token.TokenNone;
         let structName;
@@ -168,7 +173,42 @@ class Parser {
     } // end of parseTypeStruct()
 
     parseIdentPart(valueType) {
-    }
+        let done = false;
+        let token, value;
+        let oldState;
+        let ident = null;
+
+        while (!done) {
+            oldState = this.stateSave();
+            [token, value] = this.getTokenValue();
+            switch (token) {
+                // todo
+                //case Token.TokenOpenBracket:
+                case Token.TokenAsterisk:
+                    // 数据类型后面是星号，生成以此数据类型为父类型的指针类型
+                    valueType = valueType.makePointerType();
+                    break;
+                case Token.TokenIdentifier:
+                    ident = value;
+                    done = true;
+                    break;
+                default:
+                    this.stateRestore(oldState);
+                    done = true;
+                    break;
+            }
+        }
+
+        if (valueType === null) {
+            platform.programFail(`bad type declaration`);
+        }
+
+        if (ident !== null) {
+            valueType = this.parseTypeBack(valueType);
+        }
+
+        return [valueType, ident];
+    } // end of parseIdentPart()
 
     parseDeclaration() {
     }
