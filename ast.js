@@ -2,7 +2,7 @@ const Token = require('./interpreter');
 
 const AstEnum = {
     AstNone: 0,
-    AstToken: 1,
+    AstOperator: 1,
     AstDeclaration: 2,
     AstAssign: 3,
     AstExpression: 4,
@@ -20,31 +20,12 @@ const AstEnum = {
     AstMemberOp: 16,
     AstPtrMemberOp: 17,
     AstIdentifier: 18,
-    AstStatements: 19
+    AstStatements: 19,
+    AstConstant: 20
 };
 
 const AstNames = [
-    "AstNone",
-    "AstToken",
-    "AstDeclaration",
-    "AstAssign",
-    "AstExpression",
-    "AstIf",
-    "AstWhile",
-    "AstFor",
-    "AstDoWhile",
-    "AstStruct",
-    "AstUnion",
-    "AstEnum",
-    "AstFuncDef",
-    "AstFuncCall",
-    "AstTypedef",
-    "AstIndexOp",
-    "AstMemberOp",
-    "AstPtrMemberOp",
-    "AstIdentifier",
-    "AstStatements"
 ];
 
-console.log(AstNames[AstEnum.AstIdentifier]);
+//console.log(AstNames[AstEnum.AstIdentifier]);
 module.exports = AstEnum;

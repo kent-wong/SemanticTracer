@@ -240,7 +240,7 @@ class Parser {
         }
     } // end of parseDeclaration(astList)
 
-    getIdentAst() {
+    retrieveIdentAst() {
         let token = Token.TokenNone;
         let value = null;
         let done = false;
@@ -280,25 +280,90 @@ class Parser {
         } while (!done);
 
         return astResult;
-    } // end of getIdentAst()
+    } // end of retrieveIdentAst()
 
     // 解析赋值语句，包括=, +=, -=, <<=一类的赋值语句
-    parseAssignment(astList) {
-        let token = Token.TokenNone;
-        let value = null;
-        let ident = this.getIdentAst();
-
-        if (ident === null) {
-            platform.programFail(`expect an identifier here`);
-        }
-
+    parseAssignment(astIdent, assignType) {
         const astAssign = {
             astType: Ast.AstAssign,
-            ident: value,
+            astIdent: astIdent,
+            assignType: assignType,
+            astRHS: this.parseExpression(Token.TokenComma)
         };
+
+        return astAssign;
     }
 
-    parseExpression(stopAfter) {
+    parseExpression(stopAt) {
+        let token = this.peekToken();
+        let value = null;
+        let elementList = [];
+        let astResult = null;
+        let oldState = this.stateSave();
+
+        if (token === Token.TokenIdentifier) {
+            let astIdent = this.retrieveIdentAst();
+            if (astIdent === null) {
+                platform.programFail(`expect an identifier here`);
+            }
+
+            token = this.peekToken();
+            if (token >= Token.TokenAssign && token <= Token.TokenArithmeticExorAssign) {
+                this.getToken();
+                astResult = this.parseAssignment(astIdent, token);
+                return astResult;
+            }
+        }
+
+        this.stateRestore(oldState);
+        do {
+            // 检查是否为函数调用
+            if (this.forwardTokenIf2(Token.TokenIdentifier, Token.TokenOpenBracket)) {
+                // todo
+                token = this.peekToken();
+                continue;
+            }
+
+            token = this.peekToken();
+            if (token === Token.TokenIdentifier) {
+                let astIdent = this.retrieveIdentAst();
+                if (astIdent === null) {
+                    platform.programFail(`expect an identifier here`);
+                }
+                elementList.push(astIdent); // 放入表达式元素列表
+            } else if (token >= Token.TokenQuestionMark && token <= Token.TokenCast) {
+                const astOperator = {
+                    astType: Ast.AstOperator,
+                    token: token
+                };
+                elementList.push(astOperator); // 放入表达式元素列表
+                this.getToken();
+            } else if (token >= Token.TokenIntegerConstant && token <= Token.TokenCharacterConstant) {
+                [token, value] = this.getTokenValue();
+                const astConstant = {
+                    astType: Ast.AstConstant,
+                    token: token,
+                    value: value
+                };
+                elementList.push(astOperator); // 放入表达式元素列表
+            } else if (token === Token.TokenOpenBracket) {
+                astResult = this.parseExpression(Token.TokenCloseBracket);
+                elementList.push(astOperator); // 放入表达式元素列表
+                this.getToken();
+            } else if (token === Token.TokenAsterisk || token === Token.TokenAmpersand) {
+                // todo
+            }
+
+            token = this.peekToken();
+        } while (token !== stopAt && token !== Token.TokenComma && token !== Token.TokenSemicolon);
+    
+        // 将表达式元素打包为一个AST
+        const astExpression = {
+            astType: Ast.AstExpression,
+            elementList: elementList
+        };
+
+        return astExpression;
     }
 
     parseStatement(astList) {
