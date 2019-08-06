@@ -193,46 +193,6 @@ class Parser {
         return structType;
     } // end of parseTypeStruct()
 
-    /*
-    parseIdentPart(valueType) {
-        let done = false;
-        let token, value;
-        let oldState;
-        let ident = null;
-
-        while (!done) {
-            oldState = this.stateSave();
-            [token, value] = this.getTokenValue();
-            switch (token) {
-                // todo
-                //case Token.TokenOpenBracket:
-                case Token.TokenAsterisk:
-                    // 数据类型后面是星号，生成以此数据类型为父类型的指针类型
-                    valueType = valueType.makePointerType();
-                    break;
-                case Token.TokenIdentifier:
-                    ident = value;
-                    done = true;
-                    break;
-                default:
-                    this.stateRestore(oldState);
-                    done = true;
-                    break;
-            }
-        }
-
-        if (valueType === null) {
-            platform.programFail(`bad type declaration`);
-        }
-
-        if (ident !== null) {
-            valueType = this.parseTypeBack(valueType);
-        }
-
-        return [valueType, ident];
-    } // end of parseIdentPart()
-    */
-
     /* 解析声明语句，返回AST */
     parseDeclaration(astList) {
         let token, value;
@@ -247,7 +207,7 @@ class Parser {
                 astType: Ast.AstDeclaration,
                 valueType: null,
                 ident: null,
-                arrayIndex: [],
+                arrayIndexes: [],
                 astRHS: null
             };
 
@@ -262,7 +222,7 @@ class Parser {
             // 处理数组下标
             while (this.forwardTokenIf(Token.TokenLeftSquareBracket)) {
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
-                astResult.arrayIndex.push(astIndex);
+                astResult.arrayIndexes.push(astIndex);
             }
 
             // 处理赋值
@@ -280,7 +240,62 @@ class Parser {
         }
     } // end of parseDeclaration(astList)
 
+    getIdentAst() {
+        let token = Token.TokenNone;
+        let value = null;
+        let done = false;
+        let refByPtr = false;
+        let astResult = null;
+
+        do {
+            [token, value] = this.getTokenValue();
+            if (token !== Token.TokenIdentifier) {
+                return null;
+            }
+
+            const astIdent = {
+                astType: Ast.AstIdentifier,
+                ident: value,
+                arrayIndexes: [],
+                astParent: astResult,
+                refByPtr: refByPtr
+            }
+
+            // 处理数组下标
+            while (this.forwardTokenIf(Token.TokenLeftSquareBracket)) {
+                let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
+                astIdent.arrayIndexes.push(astIndex);
+            }
+
+            astResult = astIdent; // 把自己设置为parent
+
+            // 处理struct/union成员
+            token = this.peekToken();
+            if (token === Token.TokenDot || token === Token.TokenArrow) {
+                refByPtr = token === Token.TokenDot ? false : true;
+                this.getToken();
+            } else {
+                done = true;
+            }
+        } while (!done);
+
+        return astResult;
+    } // end of getIdentAst()
+
+    // 解析赋值语句，包括=, +=, -=, <<=一类的赋值语句
     parseAssignment(astList) {
+        let token = Token.TokenNone;
+        let value = null;
+        let ident = this.getIdentAst();
+
+        if (ident === null) {
+            platform.programFail(`expect an identifier here`);
+        }
+
+        const astAssign = {
+            astType: Ast.AstAssign,
+            ident: value,
+        };
     }
 
     parseExpression(stopAfter) {
