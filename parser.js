@@ -184,7 +184,7 @@ class Parser {
         let astMember = null;
         this.getToken();
         do {
-            astMember = this.parseDeclaration(astStructDef.astMembers);
+            astMember = this.parseDeclaration();
             astStructDef.astMembers.push(astMember);
         } while (this.peekToken() !== Token.TokenRightBrace);
 
@@ -194,7 +194,8 @@ class Parser {
     } // end of parseTypeStruct()
 
     /* 解析声明语句，返回AST */
-    parseDeclaration(astList) {
+    parseDeclaration() {
+        const astList = [];
         let token, value;
         let valueType = this.parseTypeFront();
         if (valueType === null) {
@@ -205,7 +206,7 @@ class Parser {
             // 由此声明语句生成的AST
             const astResult = {
                 astType: Ast.AstDeclaration,
-                valueType: null,
+                valueType: valueType,
                 ident: null,
                 arrayIndexes: [],
                 astRHS: null
@@ -216,13 +217,13 @@ class Parser {
                 platform.programFail(`need a identifier here, instead got token type ${token}`);
             }
 
-            astResult.valueType = valueType;
             astResult.ident = value;
 
             // 处理数组下标
             while (this.forwardTokenIf(Token.TokenLeftSquareBracket)) {
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
                 astResult.arrayIndexes.push(astIndex);
+                this.getToken();
             }
 
             // 处理赋值
@@ -235,10 +236,8 @@ class Parser {
             astList.push(astResult);
         } while (this.forwardTokenIf(Token.TokenComma));
 
-        if (!this.forwardTokenIf(Token.TokenSemicolon)) {
-            platform.programFail(`missing ";" at the end of declaration statement.`);
-        }
-    } // end of parseDeclaration(astList)
+        return astList;
+    } // end of parseDeclaration()
 
     retrieveIdentAst() {
         let token = Token.TokenNone;
@@ -294,7 +293,12 @@ class Parser {
         return astAssign;
     }
 
-    parseExpression(stopAt) {
+    parseExpression(...stopAt) {
+        if (!(Token.TokenSemicolon in stopAt)) {
+            // 表达式解析不能跨越分号
+            stopAt.push(Token.TokenSemicolon);
+        }
+
         let token = this.peekToken();
         let value = null;
         let elementList = [];
@@ -316,6 +320,7 @@ class Parser {
         }
         this.stateRestore(oldState);
 
+        token = this.peekToken();
         do {
             // 检查是否为函数调用
             if (this.forwardTokenIf2(Token.TokenIdentifier, Token.TokenOpenBracket)) {
@@ -324,7 +329,6 @@ class Parser {
                 continue;
             }
 
-            token = this.peekToken();
             if (token === Token.TokenIdentifier) {
                 let astIdent = this.retrieveIdentAst();
                 if (astIdent === null) {
@@ -346,14 +350,25 @@ class Parser {
                     value: value
                 };
                 elementList.push(astOperator); // 放入表达式元素列表
-            } else if (token === Token.TokenOpenBracket) {
+            } else if (this.forwardTokenIf(Token.TokenOpenBracket)) {
                 astResult = this.parseExpression(Token.TokenCloseBracket);
                 elementList.push(astOperator); // 放入表达式元素列表
                 this.getToken();
+            } else if (this.forwardTokenIf(Token.TokenComma)) {
+                // 如果逗号不是解析停止符号，将其加入表达式元素列表
+                const astOperator = {
+                    astType: Ast.AstOperator,
+                    token: token
+                };
+                elementList.push(astOperator); // 放入表达式元素列表
+            } else if (token === Token.TokenEOF) {
+                platform.programFail(`incomplete expression`);
+            } else {
+                platform.programFail(`unrecognized token type ${Token.getTokenName(token)}`);
             }
 
             token = this.peekToken();
-        } while (token !== stopAt && token !== Token.TokenComma && token !== Token.TokenSemicolon);
+        } while (!(token in stopAt));
     
         // 处理单目运算符++, --
         elementList.forEach((v, idx, arr) => {
@@ -447,10 +462,11 @@ class Parser {
         return astExpression;
     } // end of parseExpression(stopAt)
 
-    parseStatement(astList) {
+    parseStatement() {
     }
 
-    parseStatements(astList) {
+    parseStatementBlock(...stopAt) {
+        const resultStatementList = [];
     }
     
 }
