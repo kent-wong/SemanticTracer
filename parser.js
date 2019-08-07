@@ -331,6 +331,9 @@ class Parser {
                     platform.programFail(`expect an identifier here`);
                 }
                 elementList.push(astIdent); // 放入表达式元素列表
+            } else if (token === Token.TokenAsterisk || token === Token.TokenAmpersand) {
+                // todo
+            
             } else if (token >= Token.TokenQuestionMark && token <= Token.TokenCast) {
                 const astOperator = {
                     astType: Ast.AstOperator,
@@ -350,21 +353,51 @@ class Parser {
                 astResult = this.parseExpression(Token.TokenCloseBracket);
                 elementList.push(astOperator); // 放入表达式元素列表
                 this.getToken();
-            } else if (token === Token.TokenAsterisk || token === Token.TokenAmpersand) {
-                // todo
             }
 
             token = this.peekToken();
         } while (token !== stopAt && token !== Token.TokenComma && token !== Token.TokenSemicolon);
     
+        // 处理单目运算符
+        elementList.forEach((v, idx, arr) => {
+            if (v.astType === Ast.AstOperator &&
+                (v.token === Token.TokenIncrement || v.token === Token.TokenDecrement)) {
+                if ((idx+1) >= arr.length || arr[idx+1].astType !== Ast.AstIdentifier) {
+                    platform.programFail(`lvalue is required here`);
+                }
+                if ((idx-1) > 0 && arr[idx-1] === undefined) {
+                    platform.programFail(`lvalue is required here`);
+                }
+
+                arr[idx] = {
+                    astType: Ast.AstPrefixOp,
+                    token: v.token,
+                    astIdent: arr[idx+1]
+                };
+                arr[idx+1] = undefined;
+            } else if (v.astType === Ast.AstIdentifier) {
+                if ((idx+1) < arr.length && arr[idx+1].astType === Ast.AstOperator &&
+                (arr[idx+1].token == Token.TokenIncrement || arr[idx+1].token == Token.TokenDecrement)) {
+                    arr[idx] = {
+                        astType: Ast.AstPostfixOp,
+                        token: arr[idx+1].token,
+                        astIdent: v
+                    };
+                    arr[idx+1] = undefined;
+                }
+            }
+        });
+
+        const resultList = elementList.filter(v => {return v !== undefined});
+
         // 将表达式元素打包为一个AST
         const astExpression = {
             astType: Ast.AstExpression,
-            elementList: elementList
+            elementList: resultList
         };
 
         return astExpression;
-    }
+    } // end of parseExpression(stopAt)
 
     parseStatement(astList) {
     }

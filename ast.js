@@ -21,7 +21,9 @@ const AstEnum = {
     AstPtrMemberOp: 17,
     AstIdentifier: 18,
     AstStatements: 19,
-    AstConstant: 20
+    AstConstant: 20,
+    AstPrefixOp: 21,
+    AstPostfixOp: 22
 };
 
 const AstNames = [
