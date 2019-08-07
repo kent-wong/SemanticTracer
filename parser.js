@@ -358,7 +358,7 @@ class Parser {
             token = this.peekToken();
         } while (token !== stopAt && token !== Token.TokenComma && token !== Token.TokenSemicolon);
     
-        // 处理单目运算符
+        // 处理单目运算符++, --
         elementList.forEach((v, idx, arr) => {
             if (v.astType === Ast.AstOperator &&
                 (v.token === Token.TokenIncrement || v.token === Token.TokenDecrement)) {
@@ -387,13 +387,53 @@ class Parser {
                 }
             }
         });
+        elementList = elementList.filter(v => {return v !== undefined});
 
-        const resultList = elementList.filter(v => {return v !== undefined});
+        // 处理单目运算符-, *, &
+        elementList.forEach((v, idx, arr) => {
+            if (v.astType === Ast.AstOperator && v.token === Token.TokenAmpersand) {
+                if ((idx+1) >= arr.length || arr[idx+1].astType !== Ast.AstIdentifier) {
+                    platform.programFail(`lvalue is required here`);
+                }
+
+                arr[idx] = {
+                    astType: Ast.AstTakeAddress,
+                    token: v.token,
+                    astIdent: arr[idx+1]
+                };
+                arr[idx+1] = undefined;
+            }
+
+            if (v.astType === Ast.AstOperator && v.token === Token.TokenAsterisk) {
+                if (((idx-1) === 0 || ar[idx-1].astType === Ast.AstOperator) &&
+                    (idx+1) < arr.length && arr[idx+1] !== Ast.AstOperator) {
+                    arr[idx] = {
+                        astType: Ast.AstTakeValue,
+                        token: v.token,
+                        astIdent: arr[idx+1]
+                    };
+                    arr[idx+1] = undefined;
+                }
+            }
+
+            if (v.astType === Ast.AstOperator && v.token === Token.TokenMinus) {
+                if (((idx-1) === 0 || ar[idx-1].astType === Ast.AstOperator) &&
+                    (idx+1) < arr.length && arr[idx+1] !== Ast.AstOperator) {
+                    arr[idx] = {
+                        astType: Ast.AstUMinus,
+                        token: v.token,
+                        astIdent: arr[idx+1]
+                    };
+                    arr[idx+1] = undefined;
+                }
+            }
+        });
+        elementList = elementList.filter(v => {return v !== undefined});
 
         // 将表达式元素打包为一个AST
         const astExpression = {
             astType: Ast.AstExpression,
-            elementList: resultList
+            elementList: elementList
         };
 
         return astExpression;
