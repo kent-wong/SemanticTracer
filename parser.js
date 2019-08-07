@@ -303,6 +303,7 @@ class Parser {
         let value = null;
         let elementList = [];
         let astResult = null;
+        let astNextExpression = null;
 
         let oldState = this.stateSave();
         if (token === Token.TokenIdentifier) {
@@ -355,12 +356,8 @@ class Parser {
                 elementList.push(astOperator); // 放入表达式元素列表
                 this.getToken();
             } else if (this.forwardTokenIf(Token.TokenComma)) {
-                // 如果逗号不是解析停止符号，将其加入表达式元素列表
-                const astOperator = {
-                    astType: Ast.AstOperator,
-                    token: token
-                };
-                elementList.push(astOperator); // 放入表达式元素列表
+                // 如果逗号不是解析停止符号，将产生表达式AST链表
+                astNextExpression = this.parseExpression(stopAt);
             } else if (token === Token.TokenEOF) {
                 platform.programFail(`incomplete expression`);
             } else {
@@ -456,7 +453,8 @@ class Parser {
         // 将表达式元素打包为一个AST
         const astExpression = {
             astType: Ast.AstExpression,
-            elementList: elementList
+            elementList: elementList,
+            next: astNextExpression
         };
 
         return astExpression;
@@ -467,8 +465,22 @@ class Parser {
 
     parseStatementBlock(...stopAt) {
         const resultStatementList = [];
+        const token;
+        do {
+            let astStatement = this.parseStatement();
+            if (!this.forwardTokenIf(Token.TokenSemicolon)) {
+                platform.programFail(`missing ";" after statement`);
+            }
+
+            resultStatementList.push(astStatement);
+            token = this.peekToken();
+        } while (!(token in stopAt));
+
+        return resultStatementList;
     }
     
+    parseWhile() {
+    }
 }
 
 const parser = new Parser('./test.c');
