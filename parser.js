@@ -331,9 +331,6 @@ class Parser {
                     platform.programFail(`expect an identifier here`);
                 }
                 elementList.push(astIdent); // 放入表达式元素列表
-            } else if (token === Token.TokenAsterisk || token === Token.TokenAmpersand) {
-                // todo
-            
             } else if (token >= Token.TokenQuestionMark && token <= Token.TokenCast) {
                 const astOperator = {
                     astType: Ast.AstOperator,
