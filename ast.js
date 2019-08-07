@@ -20,7 +20,7 @@ const AstEnum = {
     AstMemberOp: 16,
     AstPtrMemberOp: 17,
     AstIdentifier: 18,
-    AstStatements: 19,
+    AstStatementBlock: 19,
     AstConstant: 20,
     AstPrefixOp: 21,
     AstPostfixOp: 22,
