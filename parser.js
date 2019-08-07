@@ -299,8 +299,8 @@ class Parser {
         let value = null;
         let elementList = [];
         let astResult = null;
-        let oldState = this.stateSave();
 
+        let oldState = this.stateSave();
         if (token === Token.TokenIdentifier) {
             let astIdent = this.retrieveIdentAst();
             if (astIdent === null) {
@@ -314,8 +314,8 @@ class Parser {
                 return astResult;
             }
         }
-
         this.stateRestore(oldState);
+
         do {
             // 检查是否为函数调用
             if (this.forwardTokenIf2(Token.TokenIdentifier, Token.TokenOpenBracket)) {
@@ -387,45 +387,56 @@ class Parser {
         elementList = elementList.filter(v => {return v !== undefined});
 
         // 处理单目运算符-, *, &
-        elementList.forEach((v, idx, arr) => {
-            if (v.astType === Ast.AstOperator && v.token === Token.TokenAmpersand) {
-                if ((idx+1) >= arr.length || arr[idx+1].astType !== Ast.AstIdentifier) {
-                    platform.programFail(`lvalue is required here`);
-                }
+        elementList.reverse().forEach((v, idx, arr) => {
+            if (v.astType !== Ast.AstOperator) {
+                return ;
+            }
+            const prevIdx = idx + 1;
+            const nextIdx = idx - 1;
+            const prevAst = arr[prevIdx];
+            const nextAst = arr[nextIdx];
+            const astType = null;
 
+            switch (v.token) {
+                case Token.TokenAmpersand:
+                    if (nextAst === undefined || nextAst.astType !== Ast.AstIdentifier) {
+                        platform.programFail(`lvalue is required here`);
+                    }
+                    astType = Ast.AstTakeAddress;
+                    break;
+                case Token.TokenAsterisk:
+                    if ((prevAst === undefined || prevAst === Ast.AstOperator) &&
+                            nextAst !== undefined && nextAst !== Ast.AstOperator) {
+                        astType = Ast.AstTakeValue;
+                    }
+                    break;
+                case Token.TokenMinus:
+                    if ((prevAst === undefined || prevAst === Ast.AstOperator) &&
+                            nextAst !== undefined && nextAst !== Ast.AstOperator) {
+                        astType = Ast.AstUMinus;
+                    }
+                    break;
+                case Token.TokenUnaryNot:
+                    if (nextAst === undefined || nextAst.astType === Ast.AstOperator) {
+                        platform.programFail(`value is required after unary not`);
+                    }
+                    astType = Ast.AstUnaryNot;
+                    break;
+                default:
+                    astType = null;
+                    break;
+            }
+
+            if (astType !== null) {
                 arr[idx] = {
-                    astType: Ast.AstTakeAddress,
+                    astType: astType,
                     token: v.token,
-                    astIdent: arr[idx+1]
+                    astIdent: arr[nextIdx]
                 };
-                arr[idx+1] = undefined;
-            }
-
-            if (v.astType === Ast.AstOperator && v.token === Token.TokenAsterisk) {
-                if (((idx-1) === 0 || ar[idx-1].astType === Ast.AstOperator) &&
-                    (idx+1) < arr.length && arr[idx+1] !== Ast.AstOperator) {
-                    arr[idx] = {
-                        astType: Ast.AstTakeValue,
-                        token: v.token,
-                        astIdent: arr[idx+1]
-                    };
-                    arr[idx+1] = undefined;
-                }
-            }
-
-            if (v.astType === Ast.AstOperator && v.token === Token.TokenMinus) {
-                if (((idx-1) === 0 || ar[idx-1].astType === Ast.AstOperator) &&
-                    (idx+1) < arr.length && arr[idx+1] !== Ast.AstOperator) {
-                    arr[idx] = {
-                        astType: Ast.AstUMinus,
-                        token: v.token,
-                        astIdent: arr[idx+1]
-                    };
-                    arr[idx+1] = undefined;
-                }
+                arr[nextIdx] = undefined;
             }
         });
-        elementList = elementList.filter(v => {return v !== undefined});
+        elementList = elementList.reverse().filter(v => {return v !== undefined});
 
         // 将表达式元素打包为一个AST
         const astExpression = {

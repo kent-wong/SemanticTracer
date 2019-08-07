@@ -26,7 +26,9 @@ const AstEnum = {
     AstPostfixOp: 22,
     AstTakeAddress: 23,
     AstTakeValue: 24,
-    AstUMinus: 25
+    AstUMinus: 25,
+    AstUnaryNot: 26,
+    AstUnaryExor: 27
 };
 
 const AstNames = [
