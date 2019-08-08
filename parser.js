@@ -55,26 +55,46 @@ class Parser {
         this.lexer.tokenIndex = parserInfo.tokenIndex;
     }
 
+    getToken() {
+        return this.lexer.getToken();
+    }
+
+    getTokenValue() {
+        return this.lexer.getTokenValue();
+    }
+
+    peekToken() {
+        return this.lexer.peekToken();
+    }
+
+    forwardTokenIf(token) {
+        return this.lexer.forwardTokenIf(token);
+    }
+
+    forwardTokenIf2(token1, token2) {
+        return this.lexer.forwardTokenIf2(token1, token2);
+    }
+
     makeStructName() {
         const name = String(this.structNameCounter) + '_struct_name';
         this.structNameCounter ++;
         return name;
     }
 
-    parseTypeFront() {
+    parseType() {
         const oldState = this.stateSave();
         let token = Token.TokenNone;
         let isUnsigned = false;
         let resultType = null;
 
-        token = this.lexer.getToken();
+        token = this.getToken();
         while (token === Token.TokenStaticType || token === Token.TokenAutoType ||
                 token === Token.TokenRegisterType || token === Token.TokenExternType) {
-            token = this.lexer.getToken();
+            token = this.getToken();
         }
 
         if (token === Token.TokenSignedType || token === Token.TokenUnsignedType) {
-            const nextToken = this.lexer.peekToken();
+            const nextToken = this.peekToken();
             isUnsigned = (token === Token.TokenUnsignedType);
 
             if (nextToken !== Token.IntType && nextToken !== Token.CharType &&
@@ -88,7 +108,7 @@ class Parser {
                 return resultType;
             }
 
-            token = this.lexer.getToken();
+            token = this.getToken();
         }
 
         switch(token) {
@@ -132,11 +152,7 @@ class Parser {
         }
 
         return resultType;
-    } // end of parseTypeFront()
-
-    parseTypeBack(valueType) {
-    } // end of parseTypeBack()
-
+    } // end of parseType()
 
     parseTypeStruct(astList) {
         let token = Token.TokenNone;
@@ -179,14 +195,14 @@ class Parser {
         const astStructDef = {
             astType: Ast.AstStruct,
             name: structName,
-            astMembers: []
+            members: []
         };
 
         let astMember = null;
         this.getToken();
         do {
             astMember = this.parseDeclaration();
-            astStructDef.astMembers.push(astMember);
+            astStructDef.members.push(astMember);
         } while (this.peekToken() !== Token.TokenRightBrace);
 
         astList.push(astStructDef);
@@ -195,22 +211,22 @@ class Parser {
     } // end of parseTypeStruct()
 
     /* 解析声明语句，返回AST */
-    parseDeclaration() {
+    parseDeclaration(...stopAt) {
         const astList = [];
         let token, value;
-        let valueType = this.parseTypeFront();
+        let valueType = this.parseType();
         if (valueType === null) {
-            platform.programFail(`internal error: parseDeclaration(${firstToken}): parseTypeFront()`);
+            platform.programFail(`internal error: parseDeclaration(${firstToken}): parseType()`);
         }
 
         do {
             // 由此声明语句生成的AST
-            const astResult = {
+            const astDecl = {
                 astType: Ast.AstDeclaration,
                 valueType: valueType,
                 ident: null,
                 arrayIndexes: [],
-                astRHS: null
+                rhs: null
             };
 
             [token, value] = this.getTokenValue();
@@ -218,27 +234,32 @@ class Parser {
                 platform.programFail(`need a identifier here, instead got token type ${token}`);
             }
 
-            astResult.ident = value;
+            astDecl.ident = value;
 
             // 处理数组下标
             while (this.forwardTokenIf(Token.TokenLeftSquareBracket)) {
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
-                astResult.arrayIndexes.push(astIndex);
+                astDecl.arrayIndexes.push(astIndex);
                 this.getToken();
             }
 
             // 处理赋值
             if (this.forwardTokenIf(Token.TokenAssign)) {
-                let astRHS = this.parseExpression(Token.TokenComma);
-                astResult.astRHS = astRHS;
+                let rhs = this.parseExpression(Token.TokenComma);
+                astDecl.rhs = rhs;
             }
 
             // 添加到当前语句块
-            astList.push(astResult);
+            astList.push(astDecl);
+
+            token = this.peekToken();
+            if (token in stopAt) {
+                break;
+            }
         } while (this.forwardTokenIf(Token.TokenComma));
 
         return astList;
-    } // end of parseDeclaration()
+    } // end of parseDeclaration(...stopAt)
 
     retrieveIdentAst() {
         let token = Token.TokenNone;
@@ -283,12 +304,12 @@ class Parser {
     } // end of retrieveIdentAst()
 
     // 解析赋值语句，包括=, +=, -=, <<=一类的赋值语句
-    parseAssignment(astIdent, assignType) {
+    parseAssignment(lhs, assignType) {
         const astAssign = {
             astType: Ast.AstAssign,
-            astIdent: astIdent,
+            lhs: lhs,
             assignType: assignType,
-            astRHS: this.parseExpression(Token.TokenComma)
+            rhs: this.parseExpression(Token.TokenComma)
         };
 
         return astAssign;
@@ -711,9 +732,75 @@ class Parser {
         token = this.getToken();
 
         return astCase;
-    }
+    } // end of parseSwitch()
+
+    parseIf() {
+        let token = Token.TokenNone;
+        let conditional = null;
+
+        const astIf = {
+            astType: Ast.AstIf,
+            conditional: null,
+            ifBranch: null,
+            elseBranch: null
+        };
+
+        if (!this.forwardTokenIf(Token.TokenOpenBracket)) {
+            platform.programFail(`'(' expected`);
+        }
+
+        token = this.peekToken();
+        if (token !== Token.TokenCloseBracket) {
+            conditional = this.parseExpression(Token.TokenCloseBracket);
+            astIf.conditional = conditional;
+            this.getToken();
+        } else {
+            platform.programFail(`expected expression before ')' token`);
+        }
+
+        astIf.ifBranch = this.parseBody();
+
+        // 处理else分支
+        if (this.forwardTokenIf(Token.TokenElse)) {
+            if (this.forwardTokenIf(Token.TokenIf)) {
+                // 如果else后面是if，则递归调用本函数再次解析if...else语句
+                astIf.elseBranch = this.parseIf();
+            } else {
+                // 解析语句或者语句块
+                astIf.elseBranch = this.parseBody();
+            }
+        }
+
+        return astIf;
+    } // end of parseIf()
+
+    parseFuncDef() {
+        let token = Token.TokenNone;
+        let value = null;
+        const valueType = this.parseType();
+
+        const astFuncDef = {
+            astType: Ast.AstFuncDef,
+            name: null,
+            params: [],
+            body: null,
+            pushParam: function(param) {
+                return this.params.push(param);
+            }
+        };
+
+        [token, value] = this.getTokenValue();
+
+        assert(token, Token.TokenIdentifier, `parseFuncDef(): expected identifier but got '${Token.getTokenName(token)}'`);
+
+        token = this.getToken();
+        assert(token, Token.TokenOpenBracket, `parseFuncDef(): expected '(' but got '${Token.getTokenName(token)}'`);
+
+        astFuncDef.name = value;
 
 
+
+    } // end of parseFuncDef()
 
 
 
