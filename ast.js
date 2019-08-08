@@ -28,7 +28,8 @@ const AstEnum = {
     AstTakeValue: 24,
     AstUMinus: 25,
     AstUnaryNot: 26,
-    AstUnaryExor: 27
+    AstUnaryExor: 27,
+    AstSwitch: 28
 };
 
 const AstNames = [

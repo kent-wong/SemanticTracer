@@ -295,8 +295,8 @@ class Parser {
     }
 
     parseExpression(...stopAt) {
-        if (!(Token.TokenSemicolon in stopAt)) {
-            // 表达式解析不能跨越分号
+        if (stopAt.length === 0) {
+            // 表达式默认以分号结尾
             stopAt.push(Token.TokenSemicolon);
         }
 
@@ -361,6 +361,12 @@ class Parser {
                 astNextExpression = this.parseExpression(stopAt);
             } else if (token === Token.TokenEOF) {
                 platform.programFail(`incomplete expression`);
+            } else if (token === Token.TokenSemicolon) { 
+                // 表达式解析不能跨越分号
+                // 如果分号在指定的停止符号之前出现，说明这是错误的语法
+                if (!(Token.TokenSemicolon in stopAt)) {
+                    platform.programFail(`expected '${Token.getTokenName(stopAt[0])}' before ';' token `);
+                }
             } else {
                 platform.programFail(`unrecognized token type ${Token.getTokenName(token)}`);
             }
@@ -478,16 +484,23 @@ class Parser {
     createAstBlock() {
         return {
             astType: astBlock,
-            astStatementList: [],
+            array: [],
             push: function(astStatement) {
-                return this.astStatementList.push(astStatement);
+                return this.array.push(astStatement);
             }
         };
     }
 
     parseBlock(...stopAt) {
-        const token = Token.TokenNone;
+        let token = Token.TokenNone;
         const astBlock = createAstBlock();
+
+        /*
+        if (!skipFirstToken) {
+            assert(this.getToken() === Token.TokenLeftBrace, `parseBlock(): first token is NOT TokenLeftBrace`);
+            this.getToken();
+        }
+        */
 
         do {
             let astStatement = this.parseStatement();
@@ -507,16 +520,38 @@ class Parser {
         return astBlock;
     }
     
+    parseBody() {
+        let astBlock = null;
+
+        if (this.forwardTokenIf(Token.TokenLeftBrace)) {
+            astBlock = this.parseBlock(Token.TokenRightBrace);
+        } else {
+            const statement = this.parseStatement();
+            if (statement !== null) {
+                astBlock = this.createAstBlock();
+                astBlock.push(statement);
+            }
+
+        }
+        this.getToken();
+
+        return astBlock;
+    }
+
     parseWhile() {
-        const token = Token.TokenNone;
+        let token = Token.TokenNone;
         let conditional = null;
-        let body = {
+        let astWhile = {
             astType: Ast.AstWhile,
             conditional: null,
-            astBlock: null
+            body: null
         };
 
-        assert(this.getToken() === Token.TokenWhile, `parseWhile(): first token is NOT TokenWhile`);
+        /*
+        if (!skipFirstToken) {
+            assert(this.getToken() === Token.TokenWhile, `parseWhile(): first token is NOT TokenWhile`);
+        }
+        */
 
         if (!this.forwardTokenIf(Token.TokenOpenBracket)) {
             platform.programFail(`'(' expected`);
@@ -525,41 +560,37 @@ class Parser {
         token = this.peekToken();
         if (token !== Token.TokenCloseBracket) {
             conditional = this.parseExpression(Token.TokenCloseBracket);
-        }
-        this.getToken();
-
-        if (this.forwardTokenIf(Token.TokenLeftBrace)) {
-            body.astBlock = this.parseBlock(Token.TokenRightBrace);
+            astWhile.conditional = conditional;
             this.getToken();
         } else {
-            let statement = this.parseStatement();
-            if (statement !== null) {
-                body.push(statement);
-            }
+            platform.programFail(`expected expression before ')' token`);
         }
 
-        body.conditional = conditional;
+        astWhile.body = this.parseBody();
 
-        return body;
+        return astWhile;
     } // end of parseWhile()
 
     parseDoWhile() {
-        const token = Token.TokenNone;
-        let conditional = null;
-        let body = {
+        let token = Token.TokenNone;
+        const astDoWhile = {
             astType: Ast.AstDoWhile,
             conditional: null,
-            astBlock: null
+            body: null
         };
 
-        assert(this.getToken() === Token.TokenDo, `parseDoWhile(): first token is NOT TokenDo`);
+        /*
+        if (!skipFirstToken) {
+            assert(this.getToken() === Token.TokenDo, `parseDoWhile(): first token is NOT TokenDo`);
+        }
+        */
 
         token = this.peekToken();
         if (token !== Token.TokenLeftBrace) {
             platform.programFail(`missing '{' after do keyword`);
         }
 
-        body.astBlock = this.parseBlock(Token.TokenRightBrace);
+        astDoWhile.body = this.parseBlock(Token.TokenRightBrace);
         this.getToken();
         if (!this.forwardTokenIf(Token.TokenWhile)) {
             platform.programFail(`missing while keyword after '}'`);
@@ -571,29 +602,123 @@ class Parser {
 
         token = this.peekToken();
         if (token !== Token.TokenCloseBracket) {
-            conditional = this.parseExpression(Token.TokenCloseBracket);
+            let conditional = this.parseExpression(Token.TokenCloseBracket);
+            astDoWhile.conditional = conditional;
+            this.getToken();
+        } else {
+            platform.programFail(`expected expression before ')' token`);
         }
-        this.getToken();
 
-        body.conditional = conditional;
-
-        return body;
+        return astDoWhile;
     }
 
     parseFor() {
-        const token = Token.TokenNone;
         let initial = null;
         let conditional = null;
         let finalExpression = null;
 
-        let body = {
-            astType: Ast.AstDoWhile,
+        const body = {
+            astType: Ast.AstFor,
             initial: null,
             conditional: null,
             finalExpression: null,
-            astBlock: null
+            block: null
         };
+
+        /*
+        if (!skipFirstToken) {
+            assert(this.getToken() === Token.TokenFor, `parseFor(): first token is NOT TokenFor`);
+        }
+        */
+
+        if (!this.forwardTokenIf(Token.TokenOpenBracket)) {
+            platform.programFail(`'(' expected`);
+        }
+
+        initial = this.parseStatement();
+        conditional = this.parseStatement();
+        finalExpression = this.parseExpression(Token.TokenCloseBracket);
+
+        assert(this.getToken(), Token.TokenCloseBracket, `parseFor(): ')' is expected`);
+
+        body.initial = initial;
+        body.conditional = conditional;
+        body.finalExpression = finalExpression;
+        body.block = this.parseBody();
+        
+        return body;
     }
+
+    parseSwitch() {
+        let token = Token.TokenNone;
+        let conditional = null;
+
+        const astSwitch = {
+            astType: Ast.AstSwitch,
+            conditional: null,
+            cases: [],
+            default: null,
+            pushCase: function(expression, block) {
+                this.cases.push({
+                    expression: expression,
+                    block: block
+                });
+            }
+        };
+
+        if (!this.forwardTokenIf(Token.TokenOpenBracket)) {
+            platform.programFail(`'(' expected`);
+        }
+
+        token = this.peekToken();
+        if (token !== Token.TokenCloseBracket) {
+            conditional = this.parseExpression(Token.TokenCloseBracket);
+            astSwitch.conditional = conditional;
+            this.getToken();
+        } else {
+            platform.programFail(`expected expression before ')' token`);
+        }
+
+        if (!this.forwardTokenIf(Token.TokenLeftBrace)) {
+            platform.programFail(`'{' expected`);
+        }
+
+        while (this.forwardTokenIf(Token.TokenCase)) {
+            let expression = this.parseExpression(Token.TokenColon);
+            this.getToken();
+            let block = this.parseBlock(Token.TokenCase, Token.TokenDefault, Token.TokenRightBrace);
+            astCase.push(caseBlock);
+        }
+
+        if (this.forwardTokenIf(Token.TokenDefault)) {
+            if (this.getToken() !== Token.TokenColon) {
+                platform.programFail(`':' expected`);
+            }
+
+            let block = this.parseBlock(Token.TokenCase, Token.TokenDefault, Token.TokenRightBrace);
+            astCase.default = block;
+
+            // 这里不允许case语句出现在default之后
+            if (token === Token.TokenCase) {
+                platform.programFail(`you should always put 'case label' before 'default label'`);
+            }
+
+            if (token == Token.TokenDefault) {
+                platform.programFail(`multiple default labels in one switch`);
+            }
+        }
+
+        token = this.getToken();
+
+        return astCase;
+    }
+
+
+
+
+
+
+
 
 }
 
