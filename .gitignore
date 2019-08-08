@@ -63,3 +63,4 @@ typings/
 *.swp
 *.c
 *.json
+test*
