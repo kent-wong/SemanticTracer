@@ -41,7 +41,7 @@ class Parser {
 
         this.astRoot = {
             astType: Ast.AstStatementBlock,
-            astStatementList: []
+            astBlock: []
         };
 
         this.current = this.astRoot;
@@ -468,29 +468,43 @@ class Parser {
         switch (firstToken) {
             case Token.TokenSemicolon:
                 // 如果此语句只有分号，直接返回null
+                this.getToken();
                 break;
         }
 
         return astResult;
+    } // end of parseStatement()
+
+    createAstBlock() {
+        return {
+            astType: astBlock,
+            astStatementList: [],
+            push: function(astStatement) {
+                return this.astStatementList.push(astStatement);
+            }
+        };
     }
 
-    parseStatementBlock(...stopAt) {
-        const resultStatementList = [];
+    parseBlock(...stopAt) {
         const token = Token.TokenNone;
+        const astBlock = createAstBlock();
+
         do {
             let astStatement = this.parseStatement();
+            /* 由parseStatement()检查分号
             if (!this.forwardTokenIf(Token.TokenSemicolon)) {
                 platform.programFail(`missing ';' after statement`);
             }
+            */
 
             if (astStatement !== null) {
-                resultStatementList.push(astStatement);
+                astBlock.push(astStatement);
             }
 
             token = this.peekToken();
         } while (!(token in stopAt));
 
-        return resultStatementList;
+        return astBlock;
     }
     
     parseWhile() {
@@ -499,7 +513,7 @@ class Parser {
         let body = {
             astType: Ast.AstWhile,
             conditional: null,
-            astStatementList: []
+            astBlock: null
         };
 
         assert(this.getToken() === Token.TokenWhile, `parseWhile(): first token is NOT TokenWhile`);
@@ -515,15 +529,12 @@ class Parser {
         this.getToken();
 
         if (this.forwardTokenIf(Token.TokenLeftBrace)) {
-            body.astStatementList = this.parseStatementBlock(Token.TokenRightBrace);
+            body.astBlock = this.parseBlock(Token.TokenRightBrace);
             this.getToken();
         } else {
             let statement = this.parseStatement();
-            if (!this.forwardTokenIf(Token.TokenSemicolon)) {
-                platform.programFail(`missing ';' after statement`);
-            }
             if (statement !== null) {
-                body.astStatementList.push(statement);
+                body.push(statement);
             }
         }
 
@@ -538,7 +549,7 @@ class Parser {
         let body = {
             astType: Ast.AstDoWhile,
             conditional: null,
-            astStatementList: []
+            astBlock: null
         };
 
         assert(this.getToken() === Token.TokenDo, `parseDoWhile(): first token is NOT TokenDo`);
@@ -548,7 +559,7 @@ class Parser {
             platform.programFail(`missing '{' after do keyword`);
         }
 
-        body.astStatementList = this.parseStatementBlock(Token.TokenRightBrace);
+        body.astBlock = this.parseBlock(Token.TokenRightBrace);
         this.getToken();
         if (!this.forwardTokenIf(Token.TokenWhile)) {
             platform.programFail(`missing while keyword after '}'`);
@@ -569,7 +580,20 @@ class Parser {
         return body;
     }
 
+    parseFor() {
+        const token = Token.TokenNone;
+        let initial = null;
+        let conditional = null;
+        let finalExpression = null;
 
+        let body = {
+            astType: Ast.AstDoWhile,
+            initial: null,
+            conditional: null,
+            finalExpression: null,
+            astBlock: null
+        };
+    }
 
 }
 
