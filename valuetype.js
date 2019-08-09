@@ -1,38 +1,39 @@
 const BaseType = require('./basetype');
 
 class ValueType {
-    constructor (baseType, parentType, arrayLength, ident) {
+    constructor (baseType, numPtrs, ...arrayIndexes) {
         this.baseType = baseType;
-        this.arrayLength = arrayLength !== undefined ? arrayLength : 0;
-        this.parentType = parentType !== undefined ? parentType : null;
-        this.siblingIndex = 0;
-        this.childrenTypes = [];
-
-        this.ident = ident !== undefined ? ident : null;
-        this.isStatic = false;
-
-        this.members = [];
-    }
-
-    addChild(child) {
-        child.siblingIndex = this.childrenTypes.length;
-        this.childrenTypes.push(child);
+        this.numPtrs = numPtrs === undefined ? 0 : numPtrs;
+        this.arrayIndexes = arrayIndexes;
     }
 
     makePointerType() {
-        return new ValueType(BaseType.TypePointer, this);
+        this.numPtrs ++;
     }
 
-    makeArrayType(arrayLength) {
-        return new ValueType(BaseType.TypeArray, this, arrayLength);
+    makeStructType(ident, ...members) {
+        this.ident = ident;
+        this.members = members;
+    }
+
+    TypeTag(type) {
+        tag = 0;
+        switch (type) {
+            case Token.TokenStructType:
+                tag = 1;
+                break;
+            case Token.TokenUnionType:
+                tag = 2;
+                break;
+            case Token.TokenTypedef:
+                tag = 3;
+                break;
+            default:
+                break;
+        }
+
+        return tag;
     }
 }
-
-const aType = new ValueType(BaseType.TypeInt);
-//const aPointer = aType.makePointerType();
-//console.log(aPointer);
-const aArray = aType.makeArrayType(10);
-const aArray2 = aArray.makeArrayType(2);
-console.log(aArray2);
 
 module.exports = ValueType;

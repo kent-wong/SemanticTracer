@@ -132,8 +132,11 @@ class Parser {
                 resultType = this.VoidType;
                 break;
             case Token.TokenStructType:
+                [token, structName] = this.getTokenValue();
+                assert(token, Token.TokenIdentifier, `parseType(): expected identifier for struct name, got ${Token.getTokenName(token)}`);
+                resultType = this.scopes.global.getType(structName);
             case Token.TokenUnionType:
-                resultType = this.parseTypeStruct();
+                // todo
                 break;
             case Token.TokenEnumType:
                 resultType = this.parseTypeEnum();
@@ -154,7 +157,7 @@ class Parser {
         return resultType;
     } // end of parseType()
 
-    parseTypeStruct(astList) {
+    parseTypeStruct() {
         let token = Token.TokenNone;
         let structName;
 
@@ -173,7 +176,8 @@ class Parser {
                 platform.programFail(`struct ${structName} is NOT defined.`);
             }
             // 添加struct xxxx类型，暂时无成员
-            structType = new ValueType(BaseType.TypeStruct, null, 0, structName);
+            structType = new ValueType(BaseType.TypeStruct);
+            structType.makeStructType(structName);
             this.scopes.global.setType(structName, structType);
         }
 
@@ -204,10 +208,20 @@ class Parser {
             astMember = this.parseDeclaration();
             astStructDef.members.push(astMember);
         } while (this.peekToken() !== Token.TokenRightBrace);
-
-        astList.push(astStructDef);
         this.getToken();
-        return structType;
+
+        // 在解析阶段需要知道某个structure是否已经完全定义，
+        // 用于检查变量声明的语法是否正确
+        const members = [];
+        for (let m in astStructDef.members) {
+            members.push({
+                valueType: valueType,
+                ident: ident
+            });
+        }
+        structType.makeStructType(structName, members);
+
+        return astStructDef;
     } // end of parseTypeStruct()
 
     /* 解析声明语句，返回AST */
@@ -496,6 +510,67 @@ class Parser {
             case Token.TokenSemicolon:
                 // 如果此语句只有分号，直接返回null
                 this.getToken();
+                break;
+            case Token.Identifier:
+            case TokenAsterisk:
+            case TokenAmpersand:
+            case TokenIncrement:
+            case TokenDecrement:
+            case TokenOpenBracket:
+                break;
+                
+            case TokenLeftBrace:
+                this.getToken();
+                astResult = this.parseBlock(Token.TokenRightBrace);
+                break;
+            case TokenIf:
+                this.getToken();
+                astResult = this.parseIf();
+                break;
+            case TokenWhile:
+                this.getToken();
+                astResult = this.parseWhile();
+                break;
+            case TokenDo:
+                this.getToken();
+                astResult = this.parseDoWhile();
+                break;
+            case TokenFor:
+                this.getToken();
+                astResult = this.parseFor();
+                break;
+
+            case TokenIntType:
+            case TokenShortType:
+            case TokenCharType:
+            case TokenLongType:
+            case TokenFloatType:
+            case TokenDoubleType:
+            case TokenVoidType:
+            case TokenStructType:
+            case TokenUnionType:
+            case TokenEnumType:
+            case TokenSignedType:
+            case TokenUnsignedType:
+            case TokenStaticType:
+            case TokenAutoType:
+            case TokenRegisterType:
+            case TokenExternType:
+                astResult = this.parseDeclaration();
+                if (this.getToken() !== Token.TokenSemicolon) {
+                    platform.programFail(`missing ';' after declaration`);
+                }
+                break;
+               
+            case TokenSwitch:
+                this.getToken();
+                astResult = this.parseSwitch();
+                break; 
+            case TokenTypedef:
+                break; 
+            case TokenGoto:
+                break; 
+            default:
                 break;
         }
 
