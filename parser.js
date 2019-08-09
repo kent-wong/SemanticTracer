@@ -11,10 +11,12 @@ const Ast = require('./ast');
 class Parser {
     constructor(filename) {
         this.scopes = new Scopes();
+        this.typedefs = new Map();
 
         this.lexer = new Lexer(filename);
         this.lexer.tokenize();
 
+        /*
         this.IntType = new ValueType(BaseType.TypeInt);
         this.CharType = new ValueType(BaseType.TypeChar);
         this.ShortType = new ValueType(BaseType.TypeShort);
@@ -36,6 +38,7 @@ class Parser {
         this.CharPtrType = new ValueType(BaseType.TypePointer, this.CharType);
         this.CharPtrPtrType = new ValueType(BaseType.TypePointer, this.CharPtrType);
         this.VoidPtrType = new ValueType(BaseType.TypePointer, this.VoidType);
+        */
 
         this.structNameCounter = 1000;
 
@@ -67,6 +70,10 @@ class Parser {
         return this.lexer.peekToken();
     }
 
+    peekTokenValue() {
+        return this.lexer.peekTokenValue();
+    }
+
     forwardTokenIf(token) {
         return this.lexer.forwardTokenIf(token);
     }
@@ -81,28 +88,60 @@ class Parser {
         return name;
     }
 
+    /* 解析并返回类型的AST，如果解析失败返回NULL
+     * AST结构定义：
+     *  {
+     *      astBaseType - BaseType枚举类型；
+     *      numPtrs - 此类型后面紧跟的*号数目；
+     *  }
+     */
     parseType() {
-        const oldState = this.stateSave();
         let token = Token.TokenNone;
+        let ident = null;
         let isUnsigned = false;
-        let resultType = null;
+        const resultType = {
+            astBaseType: null,
+            numPtrs: 0
+        };
 
-        token = this.getToken();
-        while (token === Token.TokenStaticType || token === Token.TokenAutoType ||
-                token === Token.TokenRegisterType || token === Token.TokenExternType) {
-            token = this.getToken();
+        // 首先处理自定义类型
+        [token, value] = this.peekTokenValue();
+        if (token === Token.TokenIdentifier) {
+            const astTypedef = this.typedefs.get(ident);
+
+            // 解析指针
+            this.getToken();
+            while (this.forwardTokenIf(Token.TokenAsterisk)) {
+                resultType.numPtrs ++;
+            }
+
+            return astTypedef;
         }
 
-        if (token === Token.TokenSignedType || token === Token.TokenUnsignedType) {
+        // 跳过这几种类型
+        while (this.forwardTokenIf(Token.TokenStaticType, Token.TokenAutoType, 
+                    Token.TokenRegisterType, Token.TokenExternType)) {
+        }
+
+        /*
+        while (token === Token.TokenStaticType || token === Token.TokenAutoType ||
+                token === Token.TokenRegisterType || token === Token.TokenExternType) {
+            // 跳过这几种类型
+            token = this.getToken();
+        }
+        */
+
+        token = this.getToken();
+        if (token in [Token.TokenSignedType, Token.TokenUnsignedType]) {
             const nextToken = this.peekToken();
             isUnsigned = (token === Token.TokenUnsignedType);
 
             if (nextToken !== Token.IntType && nextToken !== Token.CharType &&
                     nextToken !== Token.ShortType && nextToken !== Token.LongType) {
                 if (isUnsigned) {
-                    resultType = this.UnsignedIntType;
+                    resultType.astBaseType = this.UnsignedIntType;
                 } else {
-                    resultType = this.IntType;
+                    resultType.astBaseType = this.IntType;
                 }
 
                 return resultType;
@@ -113,78 +152,85 @@ class Parser {
 
         switch(token) {
             case Token.TokenIntType:
-                resultType = isUnsigned ? this.UnsignedIntType : this.IntType;
+                resultType.astBaseType = isUnsigned ? BaseType.TypeUnsignedInt : BaseType.TypeInt;
                 break;
             case Token.TokenShortType:
-                resultType = isUnsigned ? this.UnsignedShortType : this.ShortType;
+                resultType.astBaseType = isUnsigned ? BaseType.TypeUnsignedShort: BaseType.TypeShort;
                 break;
             case Token.TokenCharType:
-                resultType = isUnsigned ? this.UnsignedCharType : this.CharType;
+                resultType.astBaseType = isUnsigned ? BaseType.TypeUnsignedChar : BaseType.TypeChar;
                 break;
             case Token.TokenLongType:
-                resultType = isUnsigned ? this.UnsignedLongType : this.LongType;
+                resultType.astBaseType = isUnsigned ? BaseType.TypeUnsignedLong : BaseType.TypeLong;
                 break;
             case Token.TokenFloatType:
             case Token.TokenDoubleType:
-                resultType = this.FPType;
+                resultType.astBaseType = BaseType.TypeFP;
                 break;
             case Token.TokenVoidType:
-                resultType = this.VoidType;
+                resultType.astBaseType = BaseType.TypeVoid;
                 break;
             case Token.TokenStructType:
+                /*
                 [token, structName] = this.getTokenValue();
                 assert(token, Token.TokenIdentifier, `parseType(): expected identifier for struct name, got ${Token.getTokenName(token)}`);
-                resultType = this.scopes.global.getType(structName);
+                resultType.astBaseType = BaseType.TypeStruct;
+                resultType.ident = structName;
+                */
+                resultType = this.parseStruct();
+                break;
             case Token.TokenUnionType:
                 // todo
                 break;
             case Token.TokenEnumType:
                 resultType = this.parseTypeEnum();
                 break;
-            case Token.TokenIdentifier:
-                // todo
-                break;
             default:
-                this.stateRestore(oldState);
+                break;
         }
 
-        if (resultType !== null) {
-            while (this.forwardTokenIf(Token.TokenAsterisk)) {
-                resultType = resultType.makePointerType();
-            }
+        // 解析指针
+        while (this.forwardTokenIf(Token.TokenAsterisk)) {
+            resultType.numPtrs ++;
+        }
+
+        if (resultType.astBaseType === null) {
+            resultType = null;
         }
 
         return resultType;
     } // end of parseType()
 
-    parseTypeStruct() {
+    parseStruct() {
         let token = Token.TokenNone;
-        let structName;
+        let structName = null;
+        let makeupName = false;
 
-        [token, value] = this.peekTokenValue();
+        token = this.peekToken();
         if (token === Token.TokenIdentifier) {
-            // 获取structure名字
+            // 获取struct名字
             [token, structName] = this.getTokenValue();
             token = this.peekToken();
         } else {
+            // 为此struct生成一个名字
             structName = this.makeStructName();
+            makeupName = true;
         }
 
-        let structType = this.scopes.global.getType(structName);
-        if (structType === undefined) {
-            if (token === Token.TokenIdentifier) {
-                platform.programFail(`struct ${structName} is NOT defined.`);
-            }
-            // 添加struct xxxx类型，暂时无成员
-            structType = new ValueType(BaseType.TypeStruct);
-            structType.makeStructType(structName);
-            this.scopes.global.setType(structName, structType);
-        }
+        const structType = {
+            astBaseType: BaseType.TypeStruct,
+            ident: structName,
+            members: []
+        };
 
         if (token !== Token.TokenLeftBrace) {
+            if (makeupName) {
+                platform.programFail(`expected struct name`);
+            }
             return structType; // 不是struct定义语句
         }
         
+        /*
         // 以下为struct定义处理
         // 只允许structure在全局命名空间定义
         if (this.scopes.current !== this.scopes.global) {
@@ -195,40 +241,62 @@ class Parser {
             platform.programFail(`struct ${structName} is already defined.`);
         }
 
-        // 生成structure对应的AST
+        // 生成struct对应的AST
         const astStructDef = {
             astType: Ast.AstStruct,
             name: structName,
             members: []
         };
+        */
 
         let astMember = null;
         this.getToken();
         do {
             astMember = this.parseDeclaration();
-            astStructDef.members.push(astMember);
+            if (this.getToken() !== Token.TokenSemicolon) {
+                platform.programFail(`missing ';' after declaration`);
+            }
+            
+            // 生成struct的member
+            if (Array.isArray(astMember)) {
+                for (let v in astMember) {
+                    structType.members.push(v);
+                }
+            } else {
+                structType.members.push(v);
+            }
         } while (this.peekToken() !== Token.TokenRightBrace);
         this.getToken();
 
-        // 在解析阶段需要知道某个structure是否已经完全定义，
-        // 用于检查变量声明的语法是否正确
-        const members = [];
-        for (let m in astStructDef.members) {
-            members.push({
-                valueType: valueType,
-                ident: ident
-            });
-        }
-        structType.makeStructType(structName, members);
+        return structType;
+    } // end of parseStruct()
 
-        return astStructDef;
-    } // end of parseTypeStruct()
+    parseTypedef() {
+        const astValueType = this.parseType();
+        if (astValueType === null) {
+            platform.programFail(`expected a type here`);
+        }
+
+        const [token, ident] = this.getTokenValue();
+        if (token !== Token.TokenIdentifier) {
+            platform.programFail(`need a identifier here, instead got token type ${token}`);
+        }
+
+        const astTypedefs = {
+            astType: Ast.AstTypedef,
+            origin: astValueType,
+            ident: ident
+        };
+        this.typedefs.set(ident, astTypedefs);
+
+        return astTypedefs;
+    }
 
     /* 解析声明语句，返回AST */
     parseDeclaration(...stopAt) {
         const astList = [];
         let token, value;
-        let valueType = this.parseType();
+        const astValueType = this.parseType();
         if (valueType === null) {
             platform.programFail(`internal error: parseDeclaration(${firstToken}): parseType()`);
         }
@@ -237,7 +305,7 @@ class Parser {
             // 由此声明语句生成的AST
             const astDecl = {
                 astType: Ast.AstDeclaration,
-                valueType: valueType,
+                valueType: astValueType,
                 ident: null,
                 arrayIndexes: [],
                 rhs: null
@@ -503,7 +571,7 @@ class Parser {
     } // end of parseExpression(stopAt)
 
     parseStatement() {
-        const firstToken = this.peekToken();
+        const [firstToken, firstValue] = this.peekToken();
         let astResult = null;
 
         switch (firstToken) {
@@ -511,18 +579,35 @@ class Parser {
                 // 如果此语句只有分号，直接返回null
                 this.getToken();
                 break;
+
             case Token.Identifier:
+                if (this.typedefs.get(firstValue) !== undefined) {
+                    // identifier是由typedef定义的自定义类型
+                    astResult = this.parseDeclaration();
+                    if (this.getToken() !== Token.TokenSemicolon) {
+                        platform.programFail(`missing ';' after declaration`);
+                    }
+
+                    return astResult;
+                } // 否则按expression处理
             case TokenAsterisk:
             case TokenAmpersand:
             case TokenIncrement:
             case TokenDecrement:
             case TokenOpenBracket:
+                astResult = this.parseExpression();
+                if (this.getToken() !== Token.TokenSemicolon) {
+                    platform.programFail(`missing ';' after expression`);
+                }
                 break;
                 
             case TokenLeftBrace:
                 this.getToken();
                 astResult = this.parseBlock(Token.TokenRightBrace);
+                this.getToken();
                 break;
+
+            // 解析控制语句 
             case TokenIf:
                 this.getToken();
                 astResult = this.parseIf();
@@ -539,7 +624,24 @@ class Parser {
                 this.getToken();
                 astResult = this.parseFor();
                 break;
+            case TokenSwitch:
+                this.getToken();
+                astResult = this.parseSwitch();
+                break; 
 
+            // 下列为以类型开始的语句，按照声明语句来解析(包括函数定义)
+            case TokenStructType:
+                /*
+                let oldState = this.stateSave();
+                this.getToken();
+                if (this.forwardTokenIf(Token.TokenLeftBrace) ||
+                        this.forwardTokenIf2(Token.TokenIdentifier, Token.TokenLeftBrace)) {
+                    this.stateRestore(oldState);
+                    this.getToken();
+                    astResult = this.parseStruct();
+                }
+                this.stateRestore(oldState);
+                */
             case TokenIntType:
             case TokenShortType:
             case TokenCharType:
@@ -547,7 +649,6 @@ class Parser {
             case TokenFloatType:
             case TokenDoubleType:
             case TokenVoidType:
-            case TokenStructType:
             case TokenUnionType:
             case TokenEnumType:
             case TokenSignedType:
@@ -562,14 +663,16 @@ class Parser {
                 }
                 break;
                
-            case TokenSwitch:
-                this.getToken();
-                astResult = this.parseSwitch();
-                break; 
             case TokenTypedef:
+                astResult = this.parseTypedef();
+                if (this.getToken() !== Token.TokenSemicolon) {
+                    platform.programFail(`missing ';' after typedef`);
+                }
                 break; 
+
             case TokenGoto:
                 break; 
+
             default:
                 break;
         }

@@ -639,22 +639,27 @@ class Lexer {
         return [tokenInfo.token, tokenInfo.value];
     }
 
-    peekTokenValue() {
-        return this.getToken(false);
-    }
-
     getToken() {
         const [token, value] = this.getTokenValue();
         return token;
     }
 
-    forwardTokenIf(token) {
+    peekTokenValue() {
+        return this.getToken(false);
+    }
+
+    peekToken() {
+        const [token, value] = this.peekTokenValue();
+        return token;
+    }
+
+    forwardTokenIf(...tokens) {
         if (this.tokenIndex >= this.tokenInfo.length) {
-            return token === Token.TokenEOF ? true : false;
+            return (Token.TokenEOF in tokens) ? true : false;
         }
 
         const tokenInfo = this.tokenInfo[this.tokenIndex];
-        if (tokenInfo.token === token) {
+        if (tokenInfo.token in tokens) {
             this.tokenIndex ++;
             return true;
         }
@@ -675,10 +680,6 @@ class Lexer {
         }
 
         return false;
-    }
-    peekToken() {
-        const [token, value] = this.peekTokenValue();
-        return token;
     }
 }
 
