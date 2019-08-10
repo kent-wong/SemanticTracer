@@ -412,7 +412,7 @@ class Parser {
         token = this.peekToken();
         do {
             // 检查是否为函数调用
-            if (this.forwardTokenIf2(Token.TokenIdentifier, Token.TokenOpenBracket)) {
+            if (this.forwardTokenIf2(Token.TokenIdentifier, Token.TokenOpenParenth)) {
                 // todo
                 token = this.peekToken();
                 continue;
@@ -439,8 +439,8 @@ class Parser {
                     value: value
                 };
                 elementList.push(astOperator); // 放入表达式元素列表
-            } else if (this.forwardTokenIf(Token.TokenOpenBracket)) {
-                astResult = this.parseExpression(Token.TokenCloseBracket);
+            } else if (this.forwardTokenIf(Token.TokenOpenParenth)) {
+                astResult = this.parseExpression(Token.TokenCloseParenth);
                 elementList.push(astOperator); // 放入表达式元素列表
                 this.getToken();
             } else if (this.forwardTokenIf(Token.TokenComma)) {
@@ -586,7 +586,7 @@ class Parser {
             case TokenAmpersand:
             case TokenIncrement:
             case TokenDecrement:
-            case TokenOpenBracket:
+            case TokenOpenParenth:
                 astResult = this.parseExpression();
                 if (this.getToken() !== Token.TokenSemicolon) {
                     platform.programFail(`missing ';' after expression`);
@@ -761,13 +761,13 @@ class Parser {
         }
         */
 
-        if (!this.forwardTokenIf(Token.TokenOpenBracket)) {
+        if (!this.forwardTokenIf(Token.TokenOpenParenth)) {
             platform.programFail(`'(' expected`);
         }
 
         token = this.peekToken();
-        if (token !== Token.TokenCloseBracket) {
-            conditional = this.parseExpression(Token.TokenCloseBracket);
+        if (token !== Token.TokenCloseParenth) {
+            conditional = this.parseExpression(Token.TokenCloseParenth);
             astWhile.conditional = conditional;
             this.getToken();
         } else {
@@ -804,13 +804,13 @@ class Parser {
             platform.programFail(`missing while keyword after '}'`);
         }
 
-        if (!this.forwardTokenIf(Token.TokenOpenBracket)) {
+        if (!this.forwardTokenIf(Token.TokenOpenParenth)) {
             platform.programFail(`'(' expected`);
         }
 
         token = this.peekToken();
-        if (token !== Token.TokenCloseBracket) {
-            let conditional = this.parseExpression(Token.TokenCloseBracket);
+        if (token !== Token.TokenCloseParenth) {
+            let conditional = this.parseExpression(Token.TokenCloseParenth);
             astDoWhile.conditional = conditional;
             this.getToken();
         } else {
@@ -839,15 +839,15 @@ class Parser {
         }
         */
 
-        if (!this.forwardTokenIf(Token.TokenOpenBracket)) {
+        if (!this.forwardTokenIf(Token.TokenOpenParenth)) {
             platform.programFail(`'(' expected`);
         }
 
         initial = this.parseStatement();
         conditional = this.parseStatement();
-        finalExpression = this.parseExpression(Token.TokenCloseBracket);
+        finalExpression = this.parseExpression(Token.TokenCloseParenth);
 
-        assert(this.getToken(), Token.TokenCloseBracket, `parseFor(): ')' is expected`);
+        assert(this.getToken(), Token.TokenCloseParenth, `parseFor(): ')' is expected`);
 
         body.initial = initial;
         body.conditional = conditional;
@@ -874,13 +874,13 @@ class Parser {
             }
         };
 
-        if (!this.forwardTokenIf(Token.TokenOpenBracket)) {
+        if (!this.forwardTokenIf(Token.TokenOpenParenth)) {
             platform.programFail(`'(' expected`);
         }
 
         token = this.peekToken();
-        if (token !== Token.TokenCloseBracket) {
-            conditional = this.parseExpression(Token.TokenCloseBracket);
+        if (token !== Token.TokenCloseParenth) {
+            conditional = this.parseExpression(Token.TokenCloseParenth);
             astSwitch.conditional = conditional;
             this.getToken();
         } else {
@@ -932,13 +932,13 @@ class Parser {
             elseBranch: null
         };
 
-        if (!this.forwardTokenIf(Token.TokenOpenBracket)) {
+        if (!this.forwardTokenIf(Token.TokenOpenParenth)) {
             platform.programFail(`'(' expected`);
         }
 
         token = this.peekToken();
-        if (token !== Token.TokenCloseBracket) {
-            conditional = this.parseExpression(Token.TokenCloseBracket);
+        if (token !== Token.TokenCloseParenth) {
+            conditional = this.parseExpression(Token.TokenCloseParenth);
             astIf.conditional = conditional;
             this.getToken();
         } else {
@@ -961,32 +961,85 @@ class Parser {
         return astIf;
     } // end of parseIf()
 
+    // 解析函数定义/声明中的参数
+    parseParams() {
+        const paramList = [];
+        let hasParamName = true;
+
+        // 先检查一下是否有参数
+        if (this.forwardTokenIf(Token.TokenCloseParenth)) {
+            return [];
+        }
+
+        do {
+            const astParamType = this.parseType();
+            if (astParamType === null) {
+                platform.programFail(`expected a parameter type`);
+            }
+
+            // 参数的AST
+            const astParam = {
+                astType: Ast.AstParam,
+                paramType: astParamType,
+                ident: null,
+                arrayIndexes: []
+            };
+
+            // 函数声明中参数可以没有名字
+            if (this.peekToken() === Token.TokenComma) {
+                hasParamName = false;
+                paramList.push(astParam);
+                continue ;
+            }
+
+            let {token, paramName} = this.getTokenInfo();
+            if (token !== Token.TokenIdentifier) {
+                platform.programFail(`expected an identifier, but got token ${Token.getTokenName(token)}`);
+            }
+
+            astParam.ident = paramName;
+
+            // 处理数组下标
+            while (this.forwardTokenIf(Token.TokenLeftSquareBracket)) {
+                let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
+                astParam.arrayIndexes.push(astIndex);
+                this.getToken();
+            }
+
+            // 添加到参数AST列表
+            paramList.push(astParam);
+        } while (this.forwardTokenIf(Token.TokenComma));
+
+        if (!this.forwardTokenIf(Token.TokenCloseParenth)) {
+            platform.programFail(`expected ',' or ')'`);
+        }
+
+        return paramList;
+    } // end of parseParams() 
+
     parseFuncDef() {
-        let token = Token.TokenNone;
-        let value = null;
-        const valueType = this.parseType();
+        const returnType = this.parseType();
 
         const astFuncDef = {
             astType: Ast.AstFuncDef,
             name: null,
             params: [],
             body: null,
-            pushParam: function(param) {
-                return this.params.push(param);
-            }
+            returnType: returnType
         };
 
-        ({token, value} = this.getTokenInfo());
+        let {token, funcName} = this.getTokenInfo();
 
         assert(token, Token.TokenIdentifier, `parseFuncDef(): expected identifier but got '${Token.getTokenName(token)}'`);
 
         token = this.getToken();
-        assert(token, Token.TokenOpenBracket, `parseFuncDef(): expected '(' but got '${Token.getTokenName(token)}'`);
+        assert(token, Token.TokenOpenParenth, `parseFuncDef(): expected '(' but got '${Token.getTokenName(token)}'`);
 
-        astFuncDef.name = value;
+        astFuncDef.name = funcName;
+        astFuncDef.params = this.parseParams();
+        astFuncDef.body = this.parseBody();
 
-
-
+        return astFuncDef;
     } // end of parseFuncDef()
 
 

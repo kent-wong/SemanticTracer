@@ -42,8 +42,8 @@ const tokenNames = [
 	"TokenRightSquareBracket",
 	"TokenDot",
 	"TokenArrow",
-	"TokenOpenBracket",
-	"TokenCloseBracket",
+	"TokenOpenParenth",
+	"TokenCloseParenth",
 	"TokenIdentifier",
 	"TokenIntegerConstant",
 	"TokenFPConstant",
@@ -149,8 +149,8 @@ const TokenEnum = {
 	TokenDot: 0x29,
 	TokenArrow: 0x2a,
 
-	TokenOpenBracket: 0x2b,
-	TokenCloseBracket: 0x2c,
+	TokenOpenParenth: 0x2b,
+	TokenCloseParenth: 0x2c,
 
 	TokenIdentifier: 0x2d,
 	TokenIntegerConstant: 0x2e,

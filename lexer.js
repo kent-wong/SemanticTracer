@@ -484,10 +484,10 @@ class Lexer {
                     GotValue = this.getCharacterConstant();
                     break;
                 case '(':
-                    GotToken = Token.TokenOpenBracket;
+                    GotToken = Token.TokenOpenParenth;
                     break;
                 case ')':
-                    GotToken = Token.TokenCloseBracket;
+                    GotToken = Token.TokenCloseParenth;
                     break;
                 case '=':
                     GotToken = this.ifThen('=', Token.TokenEqual, Token.TokenAssign);
