@@ -682,33 +682,43 @@ class Lexer {
         };
     }
 
-    forwardTokenIf(...tokens) {
-        if (this.tokenIndex >= this.tokenInfo.length) {
-            return (Token.TokenEOF in tokens) ? true : false;
+    forwardIfMatch(...tokens) {
+        let index = this.tokenIndex;
+        let token;
+
+        for (let t of tokens) {
+            token = (index >= this.tokenInfo.length) ? Token.TokenEOF : this.tokenInfo[index];
+            index ++;
+            if (Array.isArray(t)) {
+                if (!(token in t)) {
+                    return false;
+                }
+            } else if (t !== token) {
+                return false;
+            }
         }
 
-        const tokenInfo = this.tokenInfo[this.tokenIndex];
-        if (tokenInfo.token in tokens) {
-            this.tokenIndex ++;
-            return true;
-        }
-
-        return false;
+        this.tokenIndex = index;
+        return true;
     }
 
-    forwardTokenIf2(token1, token2) {
-        if ((this.tokenIndex + 1) >= this.tokenInfo.length) {
-            return false;
+    peekIfMatch(...tokens) {
+        let index = this.tokenIndex;
+        let token;
+
+        for (let t of tokens) {
+            token = (index >= this.tokenInfo.length) ? Token.TokenEOF : this.tokenInfo[index];
+            index ++;
+            if (Array.isArray(t)) {
+                if (!(token in t)) {
+                    return false;
+                }
+            } else if (t !== token) {
+                return false;
+            }
         }
 
-        const tokenInfo1 = this.tokenInfo[this.tokenIndex];
-        const tokenInfo2 = this.tokenInfo[this.tokenIndex + 1];
-        if (tokenInfo1.token === token1 && tokenInfo2.token === token2) {
-            this.tokenIndex += 2;
-            return true;
-        }
-
-        return false;
+        return true;
     }
 }
 

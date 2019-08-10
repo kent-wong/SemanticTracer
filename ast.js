@@ -30,7 +30,15 @@ const AstEnum = {
     AstUnaryNot: 26,
     AstUnaryExor: 27,
     AstSwitch: 28,
-    AstParam: 29
+    AstParam: 29,
+    AstComposite: 30,
+
+    createComposite: function(...astList) {
+        return {
+            astType: this.AstComposite,
+            astList: astList
+        };
+    }
 };
 
 const AstNames = [
