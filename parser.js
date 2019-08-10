@@ -217,6 +217,7 @@ class Parser {
             makeupName = true;
         }
 
+        /*
         const structType = {
             astBaseType: BaseType.TypeStruct,
             ident: structName,
@@ -229,25 +230,18 @@ class Parser {
             }
             return structType; // 不是struct定义语句
         }
+        */
         
-        /*
-        // 以下为struct定义处理
-        // 只允许structure在全局命名空间定义
-        if (this.scopes.current !== this.scopes.global) {
-            platform.programFail(`struct ${structName} is NOT defined in global namespace.`);
+        // 本函数只解析struct的完整定义
+        if (token !== Token.TokenLeftBrace) {
+            return null;
         }
 
-        if (structType.members.length > 0) {
-            platform.programFail(`struct ${structName} is already defined.`);
-        }
-
-        // 生成struct对应的AST
         const astStructDef = {
             astType: Ast.AstStruct,
-            name: structName,
+            ident: structName,
             members: []
         };
-        */
 
         let astMember = null;
         this.getToken();
@@ -260,15 +254,15 @@ class Parser {
             // 生成struct的member
             if (Array.isArray(astMember)) {
                 for (let v in astMember) {
-                    structType.members.push(v);
+                    astStructDef.members.push(v);
                 }
             } else {
-                structType.members.push(v);
+                astStructDef.members.push(v);
             }
         } while (this.peekToken() !== Token.TokenRightBrace);
         this.getToken();
 
-        return structType;
+        return astStructDef;
     } // end of parseStruct()
 
     parseTypedef() {
@@ -302,7 +296,7 @@ class Parser {
         }
 
         do {
-            // 由此声明语句生成的AST
+            // 由声明语句生成的AST
             const astDecl = {
                 astType: Ast.AstDeclaration,
                 valueType: astValueType,
@@ -570,6 +564,14 @@ class Parser {
         return astExpression;
     } // end of parseExpression(stopAt)
 
+    /* 解析一条语句，返回此语句对应的AST
+     * 语句有一下几种类型：
+     * 1、声明语句，包括变量声明，函数定义
+     * 2、表达式语句，包括赋值，函数调用，算数/逻辑表达式等
+     * 3、struct/union/enum/typedef用户自定义类型语句
+     * 4、if...else/for/while/do...while/switch等控制语句
+     * 5、语句块
+     */
     parseStatement() {
         const [firstToken, firstValue] = this.peekToken();
         let astResult = null;
@@ -631,17 +633,20 @@ class Parser {
 
             // 下列为以类型开始的语句，按照声明语句来解析(包括函数定义)
             case TokenStructType:
-                /*
-                let oldState = this.stateSave();
+                const start = this.getTokenIndex();
+                const oldState = this.stateSave();
                 this.getToken();
-                if (this.forwardTokenIf(Token.TokenLeftBrace) ||
-                        this.forwardTokenIf2(Token.TokenIdentifier, Token.TokenLeftBrace)) {
-                    this.stateRestore(oldState);
-                    this.getToken();
-                    astResult = this.parseStruct();
+
+                const astStructDef = this.parseStruct();
+                if (astStructDef !== null) {
+                    if (!this.forwardTokenIf(Token.TokenSemicolon)) {
+                        const target = this.getTokenIndex();
+                        this.insertWithin(target, start, 2);
+                    }
+                    return astStructDef;
                 }
+
                 this.stateRestore(oldState);
-                */
             case TokenIntType:
             case TokenShortType:
             case TokenCharType:

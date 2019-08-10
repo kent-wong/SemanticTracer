@@ -618,6 +618,18 @@ class Lexer {
         } while (token !== Token.TokenEOF);
     }
 
+    insertWithin(target, start, len) {
+        const copies = [];
+        for (let i = start; i < (start+len); i ++) {
+            copies.push(this.tokenInfo[i]);
+        }
+        this.tokenInfo.splice(target, 0, ...copies);
+    }
+
+    getTokenIndex() {
+        return this.tokenIndex;
+    }
+
     getTokenValue(forward) {
         if (forward === undefined) {
             forward = true;
