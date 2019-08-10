@@ -58,20 +58,20 @@ class Parser {
         this.lexer.tokenIndex = parserInfo.tokenIndex;
     }
 
+    getTokenInfo() {
+        return this.lexer.getTokenInfo();
+    }
+
+    peekTokenInfo() {
+        return this.lexer.peekTokenInfo();
+    }
+
     getToken() {
         return this.lexer.getToken();
     }
 
-    getTokenValue() {
-        return this.lexer.getTokenValue();
-    }
-
     peekToken() {
         return this.lexer.peekToken();
-    }
-
-    peekTokenValue() {
-        return this.lexer.peekTokenValue();
     }
 
     forwardTokenIf(token) {
@@ -105,7 +105,7 @@ class Parser {
         };
 
         // 首先处理自定义类型
-        [token, value] = this.peekTokenValue();
+        ({token, ident} = this.peekTokenInfo());
         if (token === Token.TokenIdentifier) {
             const astTypedef = this.typedefs.get(ident);
 
@@ -122,14 +122,6 @@ class Parser {
         while (this.forwardTokenIf(Token.TokenStaticType, Token.TokenAutoType, 
                     Token.TokenRegisterType, Token.TokenExternType)) {
         }
-
-        /*
-        while (token === Token.TokenStaticType || token === Token.TokenAutoType ||
-                token === Token.TokenRegisterType || token === Token.TokenExternType) {
-            // 跳过这几种类型
-            token = this.getToken();
-        }
-        */
 
         token = this.getToken();
         if (token in [Token.TokenSignedType, Token.TokenUnsignedType]) {
@@ -171,13 +163,12 @@ class Parser {
                 resultType.astBaseType = BaseType.TypeVoid;
                 break;
             case Token.TokenStructType:
-                /*
-                [token, structName] = this.getTokenValue();
-                assert(token, Token.TokenIdentifier, `parseType(): expected identifier for struct name, got ${Token.getTokenName(token)}`);
+                ({token, ident} = this.getTokenInfo());
+                if (token !== Token.TokenIdentifier) {
+                    platform.programFail(`expected struct name`);
+                }
                 resultType.astBaseType = BaseType.TypeStruct;
-                resultType.ident = structName;
-                */
-                resultType = this.parseStruct();
+                resultType.ident = ident;
                 break;
             case Token.TokenUnionType:
                 // todo
@@ -204,12 +195,11 @@ class Parser {
     parseStruct() {
         let token = Token.TokenNone;
         let structName = null;
-        let makeupName = false;
 
         token = this.peekToken();
         if (token === Token.TokenIdentifier) {
             // 获取struct名字
-            [token, structName] = this.getTokenValue();
+            ({token, structName} = this.getTokenInfo());
             token = this.peekToken();
         } else {
             // 为此struct生成一个名字
@@ -266,19 +256,19 @@ class Parser {
     } // end of parseStruct()
 
     parseTypedef() {
-        const astValueType = this.parseType();
+        const astType = this.parseType();
         if (astValueType === null) {
             platform.programFail(`expected a type here`);
         }
 
-        const [token, ident] = this.getTokenValue();
+        const {token, ident} = this.getTokenInfo();
         if (token !== Token.TokenIdentifier) {
             platform.programFail(`need a identifier here, instead got token type ${token}`);
         }
 
         const astTypedefs = {
             astType: Ast.AstTypedef,
-            origin: astValueType,
+            origin: astType,
             ident: ident
         };
         this.typedefs.set(ident, astTypedefs);
@@ -305,7 +295,7 @@ class Parser {
                 rhs: null
             };
 
-            [token, value] = this.getTokenValue();
+            ({token, value} = this.getTokenInfo());
             if (token !== Token.TokenIdentifier) {
                 platform.programFail(`need a identifier here, instead got token type ${token}`);
             }
@@ -345,7 +335,7 @@ class Parser {
         let astResult = null;
 
         do {
-            [token, value] = this.getTokenValue();
+            ({token, value} = this.getTokenInfo());
             if (token !== Token.TokenIdentifier) {
                 return null;
             }
@@ -442,7 +432,7 @@ class Parser {
                 elementList.push(astOperator); // 放入表达式元素列表
                 this.getToken();
             } else if (token >= Token.TokenIntegerConstant && token <= Token.TokenCharacterConstant) {
-                [token, value] = this.getTokenValue();
+                ({token, value} = this.getTokenInfo());
                 const astConstant = {
                     astType: Ast.AstConstant,
                     token: token,
@@ -633,20 +623,34 @@ class Parser {
 
             // 下列为以类型开始的语句，按照声明语句来解析(包括函数定义)
             case TokenStructType:
-                const start = this.getTokenIndex();
+                const structTokenInfo = this.getTokenInfo();
                 const oldState = this.stateSave();
                 this.getToken();
 
                 const astStructDef = this.parseStruct();
                 if (astStructDef !== null) {
+                    // 在完整的struct定义之后如果没有立即出现';'
+                    // 说明此struct可能被马上用来声明变量，例如：
+                    //  struct foo {
+                    //    int bar;
+                    //  }s1, s2[10];
+                    // 
+                    // 这种情况下一条语句会产生两个AST
+                    // 为了解决这个问题，在struct完整定义后立即插入两个token：
+                    // <TokenStructType, TokenIdentifier>并返回
+                    // 这样将一条语句分成了两条语句，下次再解析的时候会进行声明语句的处理
                     if (!this.forwardTokenIf(Token.TokenSemicolon)) {
-                        const target = this.getTokenIndex();
-                        this.insertWithin(target, start, 2);
+                        const nameTokenInfo = this.lexer.makeTokenInfo(Token.TokenIdentifier,
+                                                                            astStructDef.ident,
+                                                                            this.lexer.tokenIndex(),
+                                                                            this.lexer.tokenIndex());
+                        this.lexer.insertTokens(structTokenInfo, nameTokenInfo);
                     }
                     return astStructDef;
                 }
 
                 this.stateRestore(oldState);
+                // fall-through
             case TokenIntType:
             case TokenShortType:
             case TokenCharType:
@@ -972,7 +976,7 @@ class Parser {
             }
         };
 
-        [token, value] = this.getTokenValue();
+        ({token, value} = this.getTokenInfo());
 
         assert(token, Token.TokenIdentifier, `parseFuncDef(): expected identifier but got '${Token.getTokenName(token)}'`);
 

@@ -618,6 +618,7 @@ class Lexer {
         } while (token !== Token.TokenEOF);
     }
 
+    /*
     insertWithin(target, start, len) {
         const copies = [];
         for (let i = start; i < (start+len); i ++) {
@@ -625,22 +626,29 @@ class Lexer {
         }
         this.tokenInfo.splice(target, 0, ...copies);
     }
+    */
 
-    getTokenIndex() {
+    // 当前位置插入多个token
+    insertTokens(...tokens) {
+        assert(tokens.length !== 0, `in function insertTokens(): argument tokens is an empty array`);
+        assert(index < this.tokenInfo.length, `in function insertTokens(): argument index overflowed`);
+
+        this.tokenInfo.splice(this.tokenIndex, 0, ...tokens);
+    }
+
+    tokenIndex() {
         return this.tokenIndex;
     }
 
-    getTokenValue(forward) {
+    getTokenInfo(forward) {
         if (forward === undefined) {
             forward = true;
         }
 
-        if (this.tokenInfo.length === 0) {
-            this.tokenize();
-        }
+        assert(this.tokenInfo.length === 0, `lexer scanning is not finished`);
         
         if (this.tokenIndex >= this.tokenInfo.length) {
-            return [Token.TokenEOF, null];
+            return [Token.TokenEOF, null, null, null];
         }
 
         const tokenInfo = this.tokenInfo[this.tokenIndex];
@@ -648,21 +656,30 @@ class Lexer {
             this.tokenIndex ++;
         }
 
-        return [tokenInfo.token, tokenInfo.value];
+        return tokenInfo;
+    }
+
+    peekTokenInfo() {
+        return this.getTokenInfo(false);
     }
 
     getToken() {
-        const [token, value] = this.getTokenValue();
-        return token;
-    }
-
-    peekTokenValue() {
-        return this.getToken(false);
+        const tokenInfo = this.getTokenInfo();
+        return tokenInfo.token;
     }
 
     peekToken() {
-        const [token, value] = this.peekTokenValue();
-        return token;
+        const tokenInfo = this.getTokenInfo(false);
+        return tokenInfo.token;
+    }
+
+    makeTokenInfo(token, value, start, end) {
+        return {
+            token,
+            value,
+            start,
+            end
+        };
     }
 
     forwardTokenIf(...tokens) {
