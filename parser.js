@@ -94,13 +94,15 @@ class Parser {
         let isUnionType = false;
         const resultType = {
             astBaseType: null,
-            numPtrs: 0
+            numPtrs: 0,
+            ident: null
         };
 
         // 首先处理自定义类型
         ({token, ident} = this.peekTokenInfo());
         if (token === Token.TokenIdentifier) {
-            const astTypedef = this.typedefs.get(ident);
+            // 由于无法区分自定义类型和普通标识符，所以需要查表来确认
+            resultType = this.typedefs.get(ident);
 
             // 解析指针
             this.getToken();
@@ -108,7 +110,7 @@ class Parser {
                 resultType.numPtrs ++;
             }
 
-            return astTypedef;
+            return resultType;
         }
 
         // 跳过这几种类型
@@ -172,7 +174,7 @@ class Parser {
                 resultType.ident = ident;
                 break;
             case Token.TokenEnumType:
-                resultType = this.parseEnum();
+                // todo
                 break;
             default:
                 break;
@@ -300,49 +302,98 @@ class Parser {
     }
 
     parseTypedef() {
-        const astType = this.parseType();
-        if (astValueType === null) {
-            platform.programFail(`expected a type here`);
+        const astList = [];
+        let token, ident;
+        const astModelType = this.parseType();
+        if (valueType === null) {
+            platform.programFail(`unrecognized type`);
         }
 
-        const {token, ident} = this.getTokenInfo();
-        if (token !== Token.TokenIdentifier) {
-            platform.programFail(`need a identifier here, instead got token type ${token}`);
+        do {
+            // 解析指针
+            while (this.lexer.forwardIfMatch(Token.TokenAsterisk)) {
+                astModelType.numPtrs ++;
+            }
+
+            // 由声明语句生成的AST
+            const astTypedef = {
+                astType: Ast.AstTypedef,
+                valueType: {
+                    astBaseType: astModelType.astBaseType,
+                    numPtrs: astModelType.numPtrs,
+                    ident: astModelType.ident
+                },
+                ident: null,
+                arrayIndexes: []
+            };
+
+            // 将指针数目清空
+            astModelType.numPtrs = 0;
+
+            ({token, ident} = this.getTokenInfo());
+            if (token !== Token.TokenIdentifier) {
+                platform.programFail(`need a identifier here, instead got token type ${token}`);
+            }
+
+            astTypedef.ident = ident;
+
+            // 处理数组下标
+            while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
+                let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
+                astTypedef.arrayIndexes.push(astIndex);
+                this.getToken();
+            }
+
+            // 添加到当前语句块
+            astList.push(astTypedef);
+
+            // 由于无法区分自定义类型和普通标识符，
+            // 这里将自定义类型放入表中以便后续查找区分
+            this.typedefs.set(ident, astTypedef);
+        } while (this.lexer.forwardIfMatch(Token.TokenComma));
+
+        if (this.getToken() !== Token.TokenSemicolon) {
+            platform.programFail(`missing ';' after declaration`);
         }
 
-        const astTypedefs = {
-            astType: Ast.AstTypedef,
-            origin: astType,
-            ident: ident
-        };
-        this.typedefs.set(ident, astTypedefs);
-
-        return astTypedefs;
+        return Ast.createComposite(...astList);
     }
 
     /* 解析声明语句，返回AST */
     parseDeclaration(...stopAt) {
         const astList = [];
         let token, value;
-        const astValueType = this.parseType();
+        const astModelType = this.parseType();
         if (valueType === null) {
-            platform.programFail(`internal error: parseDeclaration(${firstToken}): parseType()`);
+            platform.programFail(`unrecognized type`);
         }
 
         // 检查是否为函数声明/定义
         if (this.lexer.peekIfMatch(Token.TokenIdentifier, Token.TokenOpenParenth)) {
-            return this.parseFuncDef(astValueType);
+            return this.parseFuncDef(astModelType);
         }
 
         do {
+            // 解析指针
+            while (this.lexer.forwardIfMatch(Token.TokenAsterisk)) {
+                astModelType.numPtrs ++;
+            }
+
             // 由声明语句生成的AST
             const astDecl = {
                 astType: Ast.AstDeclaration,
-                valueType: astValueType,
+                valueType: {
+                    astBaseType: astModelType.astBaseType,
+                    numPtrs: astModelType.numPtrs,
+                    ident: astModelType.ident
+                },
                 ident: null,
                 arrayIndexes: [],
                 rhs: null
             };
+
+            // 将指针数目清空
+            astModelType.numPtrs = 0;
 
             ({token, value} = this.getTokenInfo());
             if (token !== Token.TokenIdentifier) {
@@ -1048,7 +1099,17 @@ class Parser {
 
         astFuncDef.name = funcName;
         astFuncDef.params = this._parseParams();
-        astFuncDef.body = this.parseBody();
+
+        token = this.peekToken();
+        if (token === Token.TokenLeftBrace) {
+            astFuncDef.body = this.parseBody();
+        } else if (token === Token.TokenSemicolon) {
+            // 只是函数声明，没有函数体
+            astFuncDef.body = null;
+            this.getToken();
+        } else {
+            platform.programFail(`expected ';' or '{' after ')'`);
+        }
 
         return astFuncDef;
     } // end of parseFuncDef()
@@ -1060,9 +1121,11 @@ class Parser {
 
         token = this.getToken();
         assert(token === Token.TokenOpenParenth,
-                    `parseFuncDef(): expected '(' but got '${Token.getTokenName(token)}'`);
+                    `parseFuncCall(): expected '(' but got '${Token.getTokenName(token)}'`);
 
         const args = this.parseExpression(Token.TokenCloseParenth);
+        this.getToken();
+
         return astFuncCall = {
             astType: Ast.AstFuncCall,
             name: funcName,
