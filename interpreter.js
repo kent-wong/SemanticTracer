@@ -199,7 +199,7 @@ const TokenEnum = {
 	TokenHashEndif: 0x59,
 	TokenNew: 0x5a,
 	TokenDelete: 0x5b,
-	TokenOpenMacroBracket: 0x5c,
+	TokenOpenMacroParenth: 0x5c,
 	TokenEOF: 0x5d,
 	TokenEndOfLine: 0x5e,
 	TokenEndOfFunction: 0x5f,

@@ -2,6 +2,13 @@ const fs = require('fs');
 const Token = require('./interpreter');
 const Identifier = require('./identifier');
 
+const MacroStatus = {
+    Normal: 0,
+    PendingHash: 1,
+    HashDefine: 2,
+    HashDefineIdent: 3
+};
+
 const ReservedWords = {
 	"#define": Token.TokenHashDefine,
     "#else": Token.TokenHashElse,
@@ -54,6 +61,12 @@ class Lexer {
 		this.end = this.source.length;
         this.tokenInfo = [];
         this.tokenIndex = 0;
+
+        // 扫描过程中的宏定义状态
+        this.macroStatus = MacroStatus.Normal;
+
+        // 上一次扫描出的token
+        this.lastToken = Token.TokenNone;
 	}
 
 	checkReservedWord(word) {
@@ -122,7 +135,7 @@ class Lexer {
 	}
 
 	isCIdentStart(c) {
-		return this.isAlpha(c) || c === '_' || c === '#';
+		return this.isAlpha(c) || c === '_';
 	}
 
 	isCIdent(c) {
@@ -447,16 +460,41 @@ class Lexer {
 	scanToken() {
         let GotToken = Token.TokenNone;
         let GotValue = null;
+        let pendingHash = false;
 
         do {
+            // 去掉line continuation
+            let i = 1;
+            while (this.getChar() === '\\') {
+                while (this.getChar(i) === ' ' || this.getChar(i) === '\t') {
+                    i ++;
+                }
+
+                if (this.getChar(i) === '\n') {
+                    this.increment(i+1);
+                } else if (this.getChar(i) === '\r' && this.getChar(i+1) === '\n') {
+                    this.increment(i+2);
+                } else {
+                    break;
+                }
+            }
+
             while (this.pos !== this.end && this.isSpace(this.getChar())) {
                 if (this.getChar() === '\n') {
                     this.pos ++;
                     this.line ++;
-                    this.column = 0;
+                    this.column = 1;
 
+                    if (this.macroStatus === MacroStatus.PendingHash) {
+                        this.fail(`invalid symbol #`);
+                    }
+
+                    this.macroStatus = MacroStatus.Normal;
                     return [Token.TokenEndOfLine, null];
+                } else if (this.macroStatus === MacroStatus.HashDefineIdent) {
+                    this.macroStatus = MacroStatus.Normal;
                 }
+
                 this.increment();
             }
 
@@ -465,7 +503,21 @@ class Lexer {
             }
 
             if (this.isCIdentStart(this.getChar())) {
-                return this.getWord();
+                const word = this.getWord();
+                if (this.macroStatus === MacroStatus.PendingHash) {
+                    if (this.checkReservedWord('#' + word) === Token.TokenHashDefine) {
+                        this.macroStatus = MacroStatus.HashDefine;
+                        return Token.TokenHashDefine;
+                    } else {
+                        this.fail(`unsupported preprocessing directive #${word}`);
+                    }
+                } else if (this.macroStatus === MacroStatus.HashDefine) {
+                    this.macroStatus = MacroStatus.HashDefineIdent;
+                }
+
+                return word;
+            } else if (this.macroStatus === MacroStatus.HashDefine) {
+                this.fail(`macro names must be identifiers`);
             }
 
             if (this.isDigit(this.getChar())) {
@@ -484,7 +536,12 @@ class Lexer {
                     GotValue = this.getCharacterConstant();
                     break;
                 case '(':
-                    GotToken = Token.TokenOpenParenth;
+                    if (this.macroStatus === MacroStatus.HashDefineIdent) {
+                        GotToken = Token.TokenOpenMacroParenth;
+                    } else {
+                        GotToken = Token.TokenOpenParenth;
+                    }
+                    this.macroStatus = MacroStatus.Normal;
                     break;
                 case ')':
                     GotToken = Token.TokenCloseParenth;
@@ -581,12 +638,22 @@ class Lexer {
                 case ':':
                     GotToken = Token.TokenColon;
                     break;
+                /*
                 case '\\':
                     if (this.getChar() === ' ' || this.getChar() === '\n') {
                         this.increment();
                         this.skipLineCont(this.getChar());
                     } else {
                         this.fail(`illegal character '${lastChar}'`);
+                    }
+                    break;
+                */
+                case '#':
+                    if (this.lastToken === Token.TokenEndOfLine) {
+                        this.macroStatus = MacroStatus.PendingHash;
+                        GotToken = Token.TokenNone;
+                    } else {
+                        this.fail(`invalid symbol #`);
                     }
                     break;
                 default:
@@ -605,6 +672,7 @@ class Lexer {
         do {
             lastPos = this.pos;
             [token, value] = this.scanToken();
+            this.lastToken = token;
 
             // 放入队列
             this.tokenInfo.push({token: token, value: value, start: lastPos, end: this.pos});
