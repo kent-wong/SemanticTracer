@@ -58,9 +58,9 @@ class Lexer {
 		this.filename = filename;
 		this.line = 1;
 		this.column = 1;
-		this.pos = 0
+		this.pos = 0;
 		this.end = this.source.length;
-        this.tokenInfo = [];
+        this.tokenInfo = null;
         this.tokenIndex = 0;
 
         // 扫描过程中的宏定义状态
@@ -68,31 +68,17 @@ class Lexer {
 
         // 上一次扫描出的token
         this.lastToken = Token.TokenNone;
+
+        // 宏定义
+        this.macros = null;
+        this.macroMap = new Map();
 	}
-
-    scanMacros() {
-        const macros = [];
-        
-        while (this.tokenInfo[this.tokenIndex] !== Token.TokenEOF) {
-            if (this.tokenInfo[this.tokenIndex++] === Token.TokenHashDefine) {
-                let start = this.tokenIndex - 1;
-                let macro = this.doScanMacro();
-                macros.push(macro);
-
-                // 删除宏定义
-                this.tokenInfo.splice(start, this.tokenIndex - start);
-                this.tokenIndex = start;
-            }
-        }
-
-        return macros;
-    }
 
     doScanMacro() {
         const macro = [];
 
-        while (this.tokenInfo[this.tokenIndex] !== Token.TokenEOF) {
-            if (this.tokenInfo[this.tokenIndex] === Token.TokenEndOfLine) {
+        while (this.tokenInfo[this.tokenIndex].token !== Token.TokenEOF) {
+            if (this.tokenInfo[this.tokenIndex].token === Token.TokenEndOfLine) {
                 if (macro.length === 0) {
                     this.fail(`no macro name given in #define directive`);
                 }
@@ -106,6 +92,146 @@ class Lexer {
 
         platform.programFail(`reach EOF before the end of macro`);
         return ;
+    }
+
+    // todo
+    processMacros() {
+        const macros = [];
+        
+        while (this.tokenInfo[this.tokenIndex].token !== Token.TokenEOF) {
+            if (this.tokenInfo[this.tokenIndex++].token === Token.TokenHashDefine) {
+                let start = this.tokenIndex - 1;
+                let macro = this.doScanMacro();
+                macros.push(macro);
+
+                // 删除宏定义
+                this.tokenInfo.splice(start, this.tokenIndex - start);
+                this.tokenIndex = start;
+            }
+        }
+
+        // 重置token索引
+        this.tokenIndex = 0;
+        return macros;
+    }
+
+    parseMacroParams(macro) {
+        const params = [];
+        let gotIdent = false;
+        let tokenInfo = macro.shift();
+
+        if (tokenInfo.token === Token.TokenCloseParenth) {
+            return [];
+        }
+
+        do {
+            if (gotIdent) {
+                if (tokenInfo.token !== Token.TokenComma) {
+                    platform.programFail(`expected ',' or ')'`);
+                }
+            } else {
+                if (tokenInfo.token !== Token.TokenIdentifier) {
+                    platform.programFail(`expected parameter name`);
+                }
+
+                params.push(tokenInfo);
+                gotIdent = true;
+            }
+
+            let tokenInfo = macro.shift();
+        } while (tokenInfo === undefined || tokenInfo.token !== Token.TokenCloseParenth);
+
+        if (tokenInfo === undefined) {
+            platform.programFail(`incomplete macro parameters`);
+        }
+
+        return params;
+    }
+
+    parseMacro(macro) {
+        if (macro[0].token !== Token.TokenIdentifier) {
+            platform.programFail(`expected macro name after #define directive`);
+        }
+
+        const macroInfo = {
+            ident: macro[0].value,
+            params: [],
+            body: null,
+            noExpandingBefore: 0    // 在此源码位置之前不进行宏展开
+        };
+
+        macro.shift();
+        if (macro[1].token === Token.TokenOpenMacroParenth) {
+            macro.shift();
+            macroInfo.params = parseMacroParams(macro);
+        }
+
+        if (macro.length === 0) {
+            platform.programFail(`macro definition has no body`);
+        }
+
+        macroInfo.body = macro;
+        return macroInfo;
+    }
+
+    // 扫描并解析宏定义
+    scanAndParseMacros() {
+        const macros = this.scanMacros();
+
+        if (macros.length === 0) { // 没有定义宏
+            return ;
+        }
+
+        macros.forEach((macro, index, arr) => {
+            arr[index] = this.parseMacro(macro);
+            this.macroMap.set(arr[index].ident, arr[index]);
+        });
+
+        this.macros = macros;
+    }
+
+    doScanMacroCall(macroDef) {
+        const hasArg = false;
+        const hasParam = false;
+
+        this.tokenIndex ++;
+        if (this.tokenInfo[this.tokenIndex].token === Token.TokenOpenParenth) {
+            hasArg = true;
+        }
+
+        if (macroDef.params.length !== 0) {
+            hasParam = true;
+        }
+
+        if (hasArg !== hasParam) {
+            platform.programFail(``);
+        }
+    }
+
+    scanAndExpandMacroCalls() {
+        let macroDef = null;
+        let macroCall = null;
+        let expanded = null;
+        let start = 0;
+
+        while (this.tokenInfo[this.tokenIndex].token !== Token.TokenEOF) {
+            if (this.tokenInfo[this.tokenIndex].token === Token.TokenIdentifier) {
+                macroDef = this.macroMap.get(this.tokenInfo[this.tokenIndex].value);
+                if (macroDef !== undefined) {
+                    start = this.tokenIndex;
+                    macroCall = this.doScanMacroCall(macroDef);
+                    expanded = this.expandMacro(macroDef, macroCall);
+
+                    // 删除这个宏调用，并插入宏展开后的结果
+                    this.tokenInfo.splice(start, this.tokenIndex - start, ...expanded);
+                    this.tokenIndex = start + expanded.length;
+                } else {
+                    this.tokenIndex ++;
+                }
+            } else {
+                this.tokenIndex ++;
+            }
+        }
     }
 
 	checkReservedWord(word) {
