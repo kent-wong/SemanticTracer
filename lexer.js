@@ -1,6 +1,7 @@
 const fs = require('fs');
 const Token = require('./interpreter');
 const Identifier = require('./identifier');
+const platform = require('./platform');
 
 const MacroStatus = {
     Normal: 0,
@@ -68,6 +69,44 @@ class Lexer {
         // 上一次扫描出的token
         this.lastToken = Token.TokenNone;
 	}
+
+    scanMacros() {
+        const macros = [];
+        
+        while (this.tokenInfo[this.tokenIndex] !== Token.TokenEOF) {
+            if (this.tokenInfo[this.tokenIndex++] === Token.TokenHashDefine) {
+                let start = this.tokenIndex - 1;
+                let macro = this.doScanMacro();
+                macros.push(macro);
+
+                // 删除宏定义
+                this.tokenInfo.splice(start, this.tokenIndex - start);
+                this.tokenIndex = start;
+            }
+        }
+
+        return macros;
+    }
+
+    doScanMacro() {
+        const macro = [];
+
+        while (this.tokenInfo[this.tokenIndex] !== Token.TokenEOF) {
+            if (this.tokenInfo[this.tokenIndex] === Token.TokenEndOfLine) {
+                if (macro.length === 0) {
+                    this.fail(`no macro name given in #define directive`);
+                }
+                this.tokenIndex ++;
+                return macro;
+            }
+
+            macro.push(this.tokenInfo[this.tokenIndex]);
+            this.tokenIndex ++;
+        }
+
+        platform.programFail(`reach EOF before the end of macro`);
+        return ;
+    }
 
 	checkReservedWord(word) {
 		if (ReservedWords[word] !== undefined) {

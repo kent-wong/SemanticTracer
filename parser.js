@@ -16,38 +16,9 @@ class Parser {
         this.lexer = new Lexer(filename);
         this.lexer.tokenize();
 
-        /*
-        this.IntType = new ValueType(BaseType.TypeInt);
-        this.CharType = new ValueType(BaseType.TypeChar);
-        this.ShortType = new ValueType(BaseType.TypeShort);
-        this.LongType = new ValueType(BaseType.TypeLong);
-
-        this.UnsignedIntType = new ValueType(BaseType.TypeUnsignedInt);
-        this.UnsignedCharType = new ValueType(BaseType.TypeUnsignedChar);
-        this.UnsignedShortType = new ValueType(BaseType.TypeUnsignedShort);
-        this.UnsignedLongType = new ValueType(BaseType.TypeUnsignedLong);
-
-        this.VoidType = new ValueType(BaseType.TypeVoid);
-        this.FunctionType = new ValueType(BaseType.TypeFunction);
-        this.MacroType = new ValueType(BaseType.TypeMacro);
-        this.GotoLabelType = new ValueType(BaseType.TypeGotoLabel);
-        this.FPType = new ValueType(BaseType.TypeFP);
-        this.TypeType = new ValueType(BaseType.Type_Type);
-
-        //this.CharArrayType = new ValueType();
-        this.CharPtrType = new ValueType(BaseType.TypePointer, this.CharType);
-        this.CharPtrPtrType = new ValueType(BaseType.TypePointer, this.CharPtrType);
-        this.VoidPtrType = new ValueType(BaseType.TypePointer, this.VoidType);
-        */
-
+        // used for generating random struct names
         this.structNameCounter = 1000;
 
-        this.astRoot = {
-            astType: Ast.AstStatementBlock,
-            astBlock: []
-        };
-
-        this.current = this.astRoot;
     }
 
     stateSave() {
