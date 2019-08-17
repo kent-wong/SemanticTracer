@@ -92,7 +92,6 @@ class Lexer {
         return ;
     }
 
-    // todo
     processMacros() {
         let macroName;
         let macroTokens;
@@ -115,9 +114,8 @@ class Lexer {
 
             newRound = true;
             while (this.tokenInfo[this.tokenIndex].token === Token.TokenIdentifier &&
-                        macros.get(this.tokenInfo[this.tokenIndex].value) !== undefined) {
-                macroName = this.tokenInfo[this.tokenIndex].value;
-                macroDef = this.macroDefs.get(macroName);
+                        this.macroDefs.get(this.tokenInfo[this.tokenIndex].value) !== undefined) {
+                macroDef = this.macroDefs.get(this.tokenInfo[this.tokenIndex].value);
 
                 // 清空上一轮的宏扩展记录
                 if (newRound) {

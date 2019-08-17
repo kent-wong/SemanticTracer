@@ -15,6 +15,7 @@ class Parser {
 
         this.lexer = new Lexer(filename);
         this.lexer.tokenize();
+        this.lexer.processMacros();
 
         // used for generating random struct names
         this.structNameCounter = 1000;
