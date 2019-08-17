@@ -70,8 +70,7 @@ class Lexer {
         this.lastToken = Token.TokenNone;
 
         // 宏定义
-        this.macros = null;
-        this.macroMap = new Map();
+        this.macroDefs = new Map();
 	}
 
     doScanMacro() {
@@ -86,8 +85,7 @@ class Lexer {
                 return macro;
             }
 
-            macro.push(this.tokenInfo[this.tokenIndex]);
-            this.tokenIndex ++;
+            macro.push(this.tokenInfo[this.tokenIndex ++]);
         }
 
         platform.programFail(`reach EOF before the end of macro`);
@@ -96,23 +94,59 @@ class Lexer {
 
     // todo
     processMacros() {
-        const macros = [];
+        let macroName;
+        let macroTokens;
+        let macroDef;
+        let newRound = true;
         
         while (this.tokenInfo[this.tokenIndex].token !== Token.TokenEOF) {
-            if (this.tokenInfo[this.tokenIndex++].token === Token.TokenHashDefine) {
-                let start = this.tokenIndex - 1;
-                let macro = this.doScanMacro();
-                macros.push(macro);
+            while (this.tokenInfo[this.tokenIndex].token === Token.TokenHashDefine) {
+                let start = this.tokenIndex;
+                this.tokenIndex ++;
+
+                macroTokens = this.doScanMacro();
+                macroDef = this.parseMacro(macroTokens);
+                this.macroDefs.set(macroDef.name, macroDef);
 
                 // 删除宏定义
                 this.tokenInfo.splice(start, this.tokenIndex - start);
                 this.tokenIndex = start;
             }
+
+            newRound = true;
+            while (this.tokenInfo[this.tokenIndex].token === Token.TokenIdentifier &&
+                        macros.get(this.tokenInfo[this.tokenIndex].value) !== undefined) {
+                macroName = this.tokenInfo[this.tokenIndex].value;
+                macroDef = this.macroDefs.get(macroName);
+
+                // 清空上一轮的宏扩展记录
+                if (newRound) {
+                    newRound = false;
+                    for (let v of this.macroDefs.values()) {
+                        v.used = false;
+                    }
+                }
+
+                if (macroDef.used) {
+                    break;
+                }
+
+                // 进行宏扩展
+                let start = this.tokenIndex;
+                let replaced = this.expandMacro(macroDef);
+                this.tokenInfo.splice(start, this.tokenIndex - start, replaced);
+
+                // 每个宏定义最多只能扩展一次，防止宏扩展死循环
+                macroDef.used = true;
+                this.tokenIndex = start;
+            }
+
+            this.tokenIndex ++;
         }
 
         // 重置token索引
         this.tokenIndex = 0;
-        return macros;
+        return;
     }
 
     parseMacroParams(macro) {
@@ -139,10 +173,10 @@ class Lexer {
             }
 
             let tokenInfo = macro.shift();
-        } while (tokenInfo === undefined || tokenInfo.token !== Token.TokenCloseParenth);
+        } while (tokenInfo !== undefined && tokenInfo.token !== Token.TokenCloseParenth);
 
         if (tokenInfo === undefined) {
-            platform.programFail(`incomplete macro parameters`);
+            platform.programFail('incomplete macro parameters');
         }
 
         return params;
@@ -153,44 +187,66 @@ class Lexer {
             platform.programFail(`expected macro name after #define directive`);
         }
 
-        const macroInfo = {
-            ident: macro[0].value,
+        const macroDef = {
+            name: macro[0].value,
             params: [],
             body: null,
-            noExpandingBefore: 0    // 在此源码位置之前不进行宏展开
+            used: false
         };
 
         macro.shift();
         if (macro[1].token === Token.TokenOpenMacroParenth) {
             macro.shift();
             macroInfo.params = parseMacroParams(macro);
+            macro.shift();
         }
 
         if (macro.length === 0) {
             platform.programFail(`macro definition has no body`);
         }
 
-        macroInfo.body = macro;
-        return macroInfo;
+        macroDef.body = macro;
+        return macroDef;
     }
 
-    // 扫描并解析宏定义
-    scanAndParseMacros() {
-        const macros = this.scanMacros();
+    parseMacroArgs() {
+        const stack = [];
+        const args = [];
+        let curArg = [];
 
-        if (macros.length === 0) { // 没有定义宏
-            return ;
+        while (this.tokenInfo[this.tokenIndex].token !== Token.TokenEOF) {
+            switch (this.tokenInfo[this.tokenIndex].token) {
+                case Token.TokenOpenParenth:
+                    stack.push(Token.TokenOpenParenth);
+                    curArg.push(this.tokenInfo[this.tokenIndex]);
+                    break;
+                case Token.TokenCloseParenth:
+                    if (stack.length !== 0) {
+                        stack.pop();
+                        curArg.push(this.tokenInfo[this.tokenIndex]);
+                    } else {
+                        return args;
+                    }
+                    break;
+                case Token.TokenComma:
+                    if (stack.length !== 0) {
+                        curArg.push(this.tokenInfo[this.tokenIndex]);
+                    } else {
+                        args.push(curArg);
+                        curArg = [];
+                    }
+                    break;
+                default:
+                    curArg.push(this.tokenInfo[this.tokenIndex]);
+                    break;
+            }
+
+            this.tokenIndex ++;
         }
-
-        macros.forEach((macro, index, arr) => {
-            arr[index] = this.parseMacro(macro);
-            this.macroMap.set(arr[index].ident, arr[index]);
-        });
-
-        this.macros = macros;
+        platform.programFail('incomplete macro arguments');
     }
 
-    doScanMacroCall(macroDef) {
+    expandMacro(macroDef) {
         const hasArg = false;
         const hasParam = false;
 
@@ -203,36 +259,39 @@ class Lexer {
             hasParam = true;
         }
 
-        if (hasArg !== hasParam) {
-            platform.programFail(``);
-        }
-    }
-
-    scanAndExpandMacroCalls() {
-        let macroDef = null;
-        let macroCall = null;
-        let expanded = null;
-        let start = 0;
-
-        while (this.tokenInfo[this.tokenIndex].token !== Token.TokenEOF) {
-            if (this.tokenInfo[this.tokenIndex].token === Token.TokenIdentifier) {
-                macroDef = this.macroMap.get(this.tokenInfo[this.tokenIndex].value);
-                if (macroDef !== undefined) {
-                    start = this.tokenIndex;
-                    macroCall = this.doScanMacroCall(macroDef);
-                    expanded = this.expandMacro(macroDef, macroCall);
-
-                    // 删除这个宏调用，并插入宏展开后的结果
-                    this.tokenInfo.splice(start, this.tokenIndex - start, ...expanded);
-                    this.tokenIndex = start + expanded.length;
-                } else {
-                    this.tokenIndex ++;
-                }
+        // 如果宏定义有参数，但是代码中只出现宏名称而没有参数，
+        // 则不进行宏展开
+        if (hasParam) {
+            if (!hasArg) {
+                return null;
             } else {
+                // 实参替换掉形参
                 this.tokenIndex ++;
+                let args = this.parseMacroArgs();
+                this.tokenIndex ++;
+
+                // 实参和形参的数目必须相等
+                if (macroDef.params.length !== args.length) {
+                    platform.programFail(`macro "${macroDef.name}" requires ${macroDef.params.length} arguments, but ${args.length} is given`);
+                }
+
+                let newBody = macroDef.body.concat();
+                for (let i = 0, len = newBody.length; i < len; i ++) {
+                    if (newBody[i].token === Token.TokenIdentifier &&
+                            newBody[i].value in macroDef.params) {
+                        newBody.splice(i, 1, ...args[i]);
+                        i += args[i].length - 1;
+                    }
+                }
+
+                return newBody;
             }
+        } else {
+            // 宏没有参数
+            return macroDef.body.concat();
         }
     }
+
 
 	checkReservedWord(word) {
 		if (ReservedWords[word] !== undefined) {
