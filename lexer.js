@@ -992,10 +992,9 @@ class Lexer {
         let token;
 
         for (let t of tokens) {
-            token = (index >= this.tokenInfo.length) ? Token.TokenEOF : this.tokenInfo[index];
-            index ++;
+            token = (index >= this.tokenInfo.length) ? Token.TokenEOF : this.tokenInfo[index++].token;
             if (Array.isArray(t)) {
-                if (!(token in t)) {
+                if (!t.includes(token)) {
                     return false;
                 }
             } else if (t !== token) {
@@ -1004,6 +1003,13 @@ class Lexer {
         }
 
         return true;
+    }
+
+    skipEOL() {
+        this.tokenInfo = this.tokenInfo.filter(info => {
+            return info.token !== Token.TokenEndOfLine;
+        });
+        this.tokenIndex = 0;
     }
 }
 

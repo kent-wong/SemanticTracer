@@ -16,6 +16,7 @@ class Parser {
         this.lexer = new Lexer(filename);
         this.lexer.tokenize();
         this.lexer.processMacros();
+        this.lexer.skipEOL();
 
         // used for generating random struct names
         this.structNameCounter = 1000;
@@ -91,7 +92,7 @@ class Parser {
         }
 
         token = this.getToken();
-        if (token in [Token.TokenSignedType, Token.TokenUnsignedType]) {
+        if ([Token.TokenSignedType, Token.TokenUnsignedType].includes(token)) {
             const nextToken = this.peekToken();
             isUnsigned = (token === Token.TokenUnsignedType);
 
@@ -200,7 +201,7 @@ class Parser {
             
             // 生成struct的member
             if (Array.isArray(astMember)) {
-                for (let v in astMember) {
+                for (let v of astMember) {
                     astStructDef.members.push(v);
                 }
             } else {
@@ -631,7 +632,7 @@ class Parser {
 
     createAstBlock() {
         return {
-            astType: astBlock,
+            astType: Ast.astBlock,
             array: [],
             push: function(astStatement) {
                 return this.array.push(astStatement);
@@ -641,7 +642,7 @@ class Parser {
 
     parseBlock(...stopAt) {
         let token = Token.TokenNone;
-        const astBlock = createAstBlock();
+        const astBlock = this.createAstBlock();
 
         do {
             let astStatement = this.parseStatement();
@@ -650,7 +651,7 @@ class Parser {
             }
 
             token = this.peekToken();
-        } while (!(token in stopAt));
+        } while (!stopAt.includes(token));
 
         return astBlock;
     }
@@ -1005,9 +1006,9 @@ class Parser {
      * 5、语句块
      */
     parseStatement() {
-        const {token: firstToken, value: firstValue} = this.lexer.peekTokenInfo();
         let astResult = null;
         let isUnionType = false;
+        const {token: firstToken, value: firstValue} = this.lexer.peekTokenInfo();
 
         switch (firstToken) {
             case Token.TokenSemicolon:
@@ -1108,5 +1109,8 @@ class Parser {
 
 const parser = new Parser('./test.c');
 let res;
+res = parser.parseStatement();
+console.log(res);
+
 res = parser.parseStatement();
 console.log(res);
