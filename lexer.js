@@ -453,7 +453,7 @@ class Lexer {
 				} else if (this.getChar() === 'b' || this.getChar() === 'B') {
 					base = 2;
 					this.increment();
-				} else if (this.getChar() !== '.') {
+				} else if (this.getChar() !== '.' && this.getChar() >= 0 && this.getChar() < 8) {
 					base = 8;
 					this.increment();
 				}
@@ -973,10 +973,9 @@ class Lexer {
         let token;
 
         for (let t of tokens) {
-            token = (index >= this.tokenInfo.length) ? Token.TokenEOF : this.tokenInfo[index];
-            index ++;
+            token = (index >= this.tokenInfo.length) ? Token.TokenEOF : this.tokenInfo[index++].token;
             if (Array.isArray(t)) {
-                if (!(token in t)) {
+                if (!(t.includes(token))) {
                     return false;
                 }
             } else if (t !== token) {

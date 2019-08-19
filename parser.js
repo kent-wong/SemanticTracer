@@ -71,7 +71,7 @@ class Parser {
         };
 
         // 首先处理自定义类型
-        ({token, ident} = this.peekTokenInfo());
+        ({token, value: ident} = this.peekTokenInfo());
         if (token === Token.TokenIdentifier) {
             // 由于无法区分自定义类型和普通标识符，所以需要查表来确认
             resultType = this.typedefs.get(ident);
@@ -336,7 +336,7 @@ class Parser {
         const astList = [];
         let token, value;
         const astModelType = this.parseType();
-        if (valueType === null) {
+        if (astModelType === null) {
             platform.programFail(`unrecognized type`);
         }
 
@@ -383,7 +383,7 @@ class Parser {
 
             // 处理赋值
             if (this.lexer.forwardIfMatch(Token.TokenAssign)) {
-                let rhs = this.parseExpression(Token.TokenComma);
+                let rhs = this.parseExpression(Token.TokenComma, Token.TokenSemicolon);
                 astDecl.rhs = rhs;
             }
 
@@ -391,7 +391,7 @@ class Parser {
             astList.push(astDecl);
 
             token = this.peekToken();
-            if (token in stopAt) {
+            if (stopAt.includes(token)) {
                 break;
             }
         } while (this.lexer.forwardIfMatch(Token.TokenComma));
@@ -512,10 +512,10 @@ class Parser {
                     token: token,
                     value: value
                 };
-                elementList.push(astOperator);
+                elementList.push(astConstant);
             } else if (this.lexer.forwardIfMatch(Token.TokenOpenParenth)) { // 圆括号中的子表达式
                 astResult = this.parseExpression(Token.TokenCloseParenth);
-                elementList.push(astOperator);
+                elementList.push(astResult);
                 this.getToken();
             } else if (this.lexer.forwardIfMatch(Token.TokenComma)) {
                 // 如果逗号不是解析停止符号，将产生表达式AST链表
@@ -524,7 +524,7 @@ class Parser {
             } else if (token === Token.TokenSemicolon) { 
                 // 表达式解析不能跨越分号
                 // 如果分号在指定的停止符号之前出现，说明这是错误的语法
-                if (!(Token.TokenSemicolon in stopAt)) {
+                if (!(stopAt.includes(Token.TokenSemicolon))) {
                     platform.programFail(`expected '${Token.getTokenName(stopAt[0])}' before ';' token `);
                 }
             } else if (token === Token.TokenEOF) {
@@ -534,7 +534,7 @@ class Parser {
             }
 
             token = this.peekToken();
-        } while (!(token in stopAt));
+        } while (!stopAt.includes(token));
     
         // 处理单目运算符++, --
         elementList.forEach((v, idx, arr) => {
@@ -628,115 +628,6 @@ class Parser {
 
         return astExpression;
     } // end of parseExpression(stopAt)
-
-    /* 解析一条语句，返回此语句对应的AST
-     * 语句有一下几种类型：
-     * 1、声明语句，包括变量声明，函数定义
-     * 2、表达式语句，包括赋值，函数调用，算数/逻辑表达式等
-     * 3、struct/union/enum/typedef用户自定义类型语句
-     * 4、if...else/for/while/do...while/switch等控制语句
-     * 5、语句块
-     */
-    parseStatement() {
-        const {firstToken, firstValue} = this.lexer.peekTokenInfo();
-        let astResult = null;
-        let isUnionType = false;
-
-        switch (firstToken) {
-            case Token.TokenSemicolon:
-                // 如果此语句只有分号，直接返回null
-                this.getToken();
-                break;
-
-            case Token.Identifier:
-                if (this.typedefs.get(firstValue) !== undefined) {
-                    // identifier是由typedef定义的自定义类型
-                    astResult = this.parseDeclaration();
-                    return astResult;
-                } // 否则按expression处理
-            case TokenAsterisk:
-            case TokenAmpersand:
-            case TokenIncrement:
-            case TokenDecrement:
-            case TokenOpenParenth:
-                astResult = this.parseExpression();
-                if (this.getToken() !== Token.TokenSemicolon) {
-                    platform.programFail(`missing ';' after expression`);
-                }
-                break;
-                
-            case TokenLeftBrace:
-                this.getToken();
-                astResult = this.parseBlock(Token.TokenRightBrace);
-                this.getToken();
-                break;
-
-            // 解析控制语句 
-            case TokenIf:
-                this.getToken();
-                astResult = this.parseIf();
-                break;
-            case TokenWhile:
-                this.getToken();
-                astResult = this.parseWhile();
-                break;
-            case TokenDo:
-                this.getToken();
-                astResult = this.parseDoWhile();
-                break;
-            case TokenFor:
-                this.getToken();
-                astResult = this.parseFor();
-                break;
-            case TokenSwitch:
-                this.getToken();
-                astResult = this.parseSwitch();
-                break; 
-
-            case TokenUnionType:
-            case TokenStructType:
-                astResult = this._processStructDef(false);
-                if (astResult !== null) {
-                    return astResult;
-                }
-                // fall-through
-
-            // 下列为以类型开始的语句，按照声明语句来解析(包括函数定义)
-            case TokenIntType:
-            case TokenShortType:
-            case TokenCharType:
-            case TokenLongType:
-            case TokenFloatType:
-            case TokenDoubleType:
-            case TokenVoidType:
-            case TokenUnionType:
-            case TokenEnumType:
-            case TokenSignedType:
-            case TokenUnsignedType:
-            case TokenStaticType:
-            case TokenAutoType:
-            case TokenRegisterType:
-            case TokenExternType:
-                astResult = this.parseDeclaration();
-                break;
-               
-            case TokenTypedef:
-                astResult = this._processStructDef(true);
-                if (astResult !== null) {
-                    return astResult;
-                }
-                astResult = this.parseTypedef();
-                break; 
-
-            case TokenGoto:
-                break; 
-
-            default:
-                break;
-        }
-
-        return astResult;
-    } // end of parseStatement()
 
     createAstBlock() {
         return {
@@ -1105,10 +996,117 @@ class Parser {
         };
     }
 
+    /* 解析一条语句，返回此语句对应的AST
+     * 语句有一下几种类型：
+     * 1、声明语句，包括变量声明，函数定义
+     * 2、表达式语句，包括赋值，函数调用，算数/逻辑表达式等
+     * 3、struct/union/enum/typedef用户自定义类型语句
+     * 4、if...else/for/while/do...while/switch等控制语句
+     * 5、语句块
+     */
+    parseStatement() {
+        const {token: firstToken, value: firstValue} = this.lexer.peekTokenInfo();
+        let astResult = null;
+        let isUnionType = false;
 
+        switch (firstToken) {
+            case Token.TokenSemicolon:
+                // 如果此语句只有分号，直接返回null
+                this.getToken();
+                break;
 
+            case Token.Identifier:
+                if (this.typedefs.get(firstValue) !== undefined) {
+                    // identifier是由typedef定义的自定义类型
+                    astResult = this.parseDeclaration();
+                    return astResult;
+                } // 否则按expression处理
+            case Token.TokenAsterisk:
+            case Token.TokenAmpersand:
+            case Token.TokenIncrement:
+            case Token.TokenDecrement:
+            case Token.TokenOpenParenth:
+                astResult = this.parseExpression();
+                if (this.getToken() !== Token.TokenSemicolon) {
+                    platform.programFail(`missing ';' after expression`);
+                }
+                break;
+                
+            case Token.TokenLeftBrace:
+                this.getToken();
+                astResult = this.parseBlock(Token.TokenRightBrace);
+                this.getToken();
+                break;
 
+            // 解析控制语句 
+            case Token.TokenIf:
+                this.getToken();
+                astResult = this.parseIf();
+                break;
+            case Token.TokenWhile:
+                this.getToken();
+                astResult = this.parseWhile();
+                break;
+            case Token.TokenDo:
+                this.getToken();
+                astResult = this.parseDoWhile();
+                break;
+            case Token.TokenFor:
+                this.getToken();
+                astResult = this.parseFor();
+                break;
+            case Token.TokenSwitch:
+                this.getToken();
+                astResult = this.parseSwitch();
+                break; 
 
+            case Token.TokenUnionType:
+            case Token.TokenStructType:
+                astResult = this._processStructDef(false);
+                if (astResult !== null) {
+                    return astResult;
+                }
+                // fall-through
+
+            // 下列为以类型开始的语句，按照声明语句来解析(包括函数定义)
+            case Token.TokenIntType:
+            case Token.TokenShortType:
+            case Token.TokenCharType:
+            case Token.TokenLongType:
+            case Token.TokenFloatType:
+            case Token.TokenDoubleType:
+            case Token.TokenVoidType:
+            case Token.TokenUnionType:
+            case Token.TokenEnumType:
+            case Token.TokenSignedType:
+            case Token.TokenUnsignedType:
+            case Token.TokenStaticType:
+            case Token.TokenAutoType:
+            case Token.TokenRegisterType:
+            case Token.TokenExternType:
+                astResult = this.parseDeclaration();
+                break;
+               
+            case Token.TokenTypedef:
+                astResult = this._processStructDef(true);
+                if (astResult !== null) {
+                    return astResult;
+                }
+                astResult = this.parseTypedef();
+                break; 
+
+            case Token.TokenGoto:
+                break; 
+
+            default:
+                break;
+        }
+
+        return astResult;
+    } // end of parseStatement()
 }
 
 const parser = new Parser('./test.c');
+let res;
+res = parser.parseStatement();
+console.log(res);
