@@ -1,5 +1,6 @@
 const fs = require('fs');
 const Token = require('./interpreter');
+const assert = require('assert');
 const Identifier = require('./identifier');
 const platform = require('./platform');
 
@@ -418,9 +419,6 @@ class Lexer {
         process.exit(1);
     }
 
-	/* 从当前扫描位置获取一个identifier，此identifier可能是保留关键字，也可能是变量名 
-	 * 此函数有两个返回值: 1. Token 2. identifier string(null for reserved words)
-	 * */
 	getWord() {
 		let word = '';
 		const startIndex = this.pos;
@@ -430,18 +428,7 @@ class Lexer {
 		} while (this.pos !== this.end && this.isCIdent(this.getChar()));
 
 		word = this.source.substring(startIndex, this.pos);
-		//Identifier.store(word);
-
-        if (this.pos === this.end) {
-            this.fail(`reach EOF while scanning identifier "${word}"`);
-        }
-
-		const token = this.checkReservedWord(word);
-		if (token !== Token.TokenNone) {
-			return [token, null];
-		}
-
-		return [Token.TokenIdentifier, word];
+        return word;
 	}
 
 	getNumber() {
@@ -726,18 +713,26 @@ class Lexer {
 
             if (this.isCIdentStart(this.getChar())) {
                 const word = this.getWord();
-                if (this.macroStatus === MacroStatus.PendingHash) {
-                    if (this.checkReservedWord('#' + word) === Token.TokenHashDefine) {
-                        this.macroStatus = MacroStatus.HashDefine;
-                        return Token.TokenHashDefine;
-                    } else {
+                
+                switch (this.macroStatus) {
+                    case MacroStatus.PendingHash:
+                        // 当前只支持#define
+                        if (this.checkReservedWord('#' + word) === Token.TokenHashDefine) {
+                            this.macroStatus = MacroStatus.HashDefine;
+                            return [Token.TokenHashDefine, null];
+                        }
                         this.fail(`unsupported preprocessing directive #${word}`);
-                    }
-                } else if (this.macroStatus === MacroStatus.HashDefine) {
-                    this.macroStatus = MacroStatus.HashDefineIdent;
+                        break;
+                    case MacroStatus.HashDefine:
+                        this.macroStatus = MacroStatus.HashDefineIdent;
+                        return [Token.TokenIdentifier, word];
+                    default:
+                        let reservedWord = this.checkReservedWord(word);
+                        if (reservedWord !== Token.TokenNone) {
+                            return [reservedWord, null];
+                        }
+                        return [Token.TokenIdentifier, word];
                 }
-
-                return word;
             } else if (this.macroStatus === MacroStatus.HashDefine) {
                 this.fail(`macro names must be identifiers`);
             }
@@ -871,7 +866,7 @@ class Lexer {
                     break;
                 */
                 case '#':
-                    if (this.lastToken === Token.TokenEndOfLine) {
+                    if (this.lastToken === Token.TokenNone || this.lastToken === Token.TokenEndOfLine) {
                         this.macroStatus = MacroStatus.PendingHash;
                         GotToken = Token.TokenNone;
                     } else {
@@ -885,7 +880,7 @@ class Lexer {
         } while (GotToken === Token.TokenNone);
 
         return [GotToken, GotValue];
-    } 
+    } // end of scanToken() 
 
     tokenize() {
         let token, value, lastPos;
@@ -900,23 +895,15 @@ class Lexer {
             this.tokenInfo.push({token: token, value: value, start: lastPos, end: this.pos});
 
             // wk_debug
+            /*
             console.log(`token:${Token.getTokenName(token)}`);
             if (value !== null && value !== undefined) {
                 console.log(`value:${value}`);
             }
             console.log();
+            */
         } while (token !== Token.TokenEOF);
-    }
-
-    /*
-    insertWithin(target, start, len) {
-        const copies = [];
-        for (let i = start; i < (start+len); i ++) {
-            copies.push(this.tokenInfo[i]);
-        }
-        this.tokenInfo.splice(target, 0, ...copies);
-    }
-    */
+    } // end of tokenize()
 
     // 当前位置插入多个token
     insertTokens(...tokens) {
@@ -935,7 +922,7 @@ class Lexer {
             forward = true;
         }
 
-        assert(this.tokenInfo.length === 0, `lexer scanning is not finished`);
+        assert(this.tokenInfo.length !== 0, `lexer scanning is not finished`);
         
         if (this.tokenIndex >= this.tokenInfo.length) {
             return [Token.TokenEOF, null, null, null];
