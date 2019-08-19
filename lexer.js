@@ -166,6 +166,7 @@ class Lexer {
                 if (tokenInfo.token !== Token.TokenComma) {
                     platform.programFail(`expected ',' or ')'`);
                 }
+                gotIdent = false;
             } else {
                 if (tokenInfo.token !== Token.TokenIdentifier) {
                     platform.programFail(`expected parameter name`);
@@ -279,11 +280,15 @@ class Lexer {
                 }
 
                 let newBody = macroDef.body.concat();
-                for (let i = 0, len = newBody.length; i < len; i ++) {
-                    if (newBody[i].token === Token.TokenIdentifier &&
-                            newBody[i].value in macroDef.params) {
-                        newBody.splice(i, 1, ...args[i]);
-                        i += args[i].length - 1;
+                for (let i = 0; newBody[i] !== undefined; i ++) {
+                    if (newBody[i].token === Token.TokenIdentifier) {
+                        let idx = macroDef.params.findIndex((info) => {
+                            return info.value === newBody[i].value;
+                        });
+                        if (idx !== -1) {
+                            newBody.splice(i, 1, ...args[idx]);
+                            i += args[idx].length - 1;
+                        }
                     }
                 }
 
