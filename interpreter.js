@@ -93,7 +93,7 @@ const tokenNames = [
 	"TokenDelete",
 	"TokenOpenMacroBracket",
 	"TokenEOF",
-	"TokenEndOfLine",
+	"TokenEOL",
 	"TokenEndOfFunction",
 	"TokenBackSlash"
 ];

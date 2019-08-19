@@ -133,7 +133,7 @@ class Lexer {
                 // 进行宏扩展
                 let start = this.tokenIndex;
                 let replaced = this.expandMacro(macroDef);
-                this.tokenInfo.splice(start, this.tokenIndex - start, replaced);
+                this.tokenInfo.splice(start, this.tokenIndex - start, ...replaced);
 
                 // 每个宏定义最多只能扩展一次，防止宏扩展死循环
                 macroDef.used = true;
@@ -194,7 +194,7 @@ class Lexer {
         };
 
         macro.shift();
-        if (macro[1].token === Token.TokenOpenMacroParenth) {
+        if (macro.length !== 0 && macro[0].token === Token.TokenOpenMacroParenth) {
             macro.shift();
             macroInfo.params = parseMacroParams(macro);
             macro.shift();
