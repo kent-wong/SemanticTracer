@@ -133,11 +133,15 @@ class Lexer {
                 // 进行宏扩展
                 let start = this.tokenIndex;
                 let replaced = this.expandMacro(macroDef);
-                this.tokenInfo.splice(start, this.tokenIndex - start, ...replaced);
+                if (replaced) {
+                    this.tokenInfo.splice(start, this.tokenIndex - start, ...replaced);
 
-                // 每个宏定义最多只能扩展一次，防止宏扩展死循环
-                macroDef.used = true;
-                this.tokenIndex = start;
+                    // 每个宏定义最多只能扩展一次，防止宏扩展死循环
+                    macroDef.used = true;
+                    this.tokenIndex = start;
+                } else {
+                    break;
+                }
             }
 
             this.tokenIndex ++;
@@ -197,7 +201,6 @@ class Lexer {
         if (macro.length !== 0 && macro[0].token === Token.TokenOpenMacroParenth) {
             macro.shift();
             macroDef.params = this.parseMacroParams(macro);
-            macro.shift();
         }
 
         if (macro.length === 0) {
@@ -224,6 +227,7 @@ class Lexer {
                         stack.pop();
                         curArg.push(this.tokenInfo[this.tokenIndex]);
                     } else {
+                        args.push(curArg);
                         return args;
                     }
                     break;
