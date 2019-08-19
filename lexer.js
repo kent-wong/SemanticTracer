@@ -171,7 +171,7 @@ class Lexer {
                 gotIdent = true;
             }
 
-            let tokenInfo = macro.shift();
+            tokenInfo = macro.shift();
         } while (tokenInfo !== undefined && tokenInfo.token !== Token.TokenCloseParenth);
 
         if (tokenInfo === undefined) {
@@ -196,7 +196,7 @@ class Lexer {
         macro.shift();
         if (macro.length !== 0 && macro[0].token === Token.TokenOpenMacroParenth) {
             macro.shift();
-            macroInfo.params = parseMacroParams(macro);
+            macroDef.params = this.parseMacroParams(macro);
             macro.shift();
         }
 
@@ -246,8 +246,8 @@ class Lexer {
     }
 
     expandMacro(macroDef) {
-        const hasArg = false;
-        const hasParam = false;
+        let hasArg = false;
+        let hasParam = false;
 
         this.tokenIndex ++;
         if (this.tokenInfo[this.tokenIndex].token === Token.TokenOpenParenth) {
