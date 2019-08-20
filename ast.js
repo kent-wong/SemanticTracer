@@ -32,6 +32,7 @@ const AstEnum = {
     AstSwitch: 28,
     AstParam: 29,
     AstComposite: 30,
+    AstReturn: 31,
 
     createComposite: function(...astList) {
         return {

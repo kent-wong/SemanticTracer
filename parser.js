@@ -632,7 +632,7 @@ class Parser {
 
     createAstBlock() {
         return {
-            astType: Ast.astBlock,
+            astType: Ast.AstBlock,
             array: [],
             push: function(astStatement) {
                 return this.array.push(astStatement);
@@ -954,7 +954,7 @@ class Parser {
             returnType: returnType
         };
 
-        let {token, funcName} = this.getTokenInfo();
+        let {token, value: funcName} = this.getTokenInfo();
 
         assert(token, Token.TokenIdentifier, `parseFuncDef(): expected identifier but got '${Token.getTokenName(token)}'`);
 
@@ -1099,8 +1099,20 @@ class Parser {
             case Token.TokenGoto:
                 break; 
 
-            default:
+            case Token.TokenReturn:
+                this.getToken();
+                astResult = {
+                    astType: Ast.AstReturn,
+                    value: this.parseExpression()
+                };
+                if (this.getToken() !== Token.TokenSemicolon) {
+                    platform.programFail(`missing ';' after expression`);
+                }
                 break;
+
+            default:
+                platform.programFail(`Unrecognized leading token in a statement: ${firstToken}`);
+                return null;
         }
 
         return astResult;
