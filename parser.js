@@ -429,6 +429,7 @@ class Parser {
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
                 astIdent.arrayIndexes.push(astIndex);
+                this.getToken();
             }
 
             astResult = astIdent; // 把自己设置为parent
@@ -470,6 +471,7 @@ class Parser {
         let astResult = null;
         let astNextExpression = null;
 
+        /*
         let oldState = this.stateSave();
         if (token === Token.TokenIdentifier) {
             let astIdent = this.retrieveIdentAst();
@@ -486,6 +488,7 @@ class Parser {
             }
         }
         this.stateRestore(oldState);
+        */
 
         token = this.peekToken();
         do {
@@ -494,10 +497,18 @@ class Parser {
                 astFuncCall = this.parseFuncCall();
                 elementList.push(astFuncCall);
             } else if (token === Token.TokenIdentifier) { // 变量
-                let astIdent = this.retrieveIdentAst();
+                const astIdent = this.retrieveIdentAst();
                 if (astIdent === null) {
                     platform.programFail(`expect an identifier here`);
                 }
+                // 赋值语句单独处理
+                token = this.peekToken();
+                if (token >= Token.TokenAssign && token <= Token.TokenArithmeticExorAssign) {
+                    this.getToken();
+                    astResult = this.parseAssignment(astIdent, token);
+                    return astResult;
+                }
+
                 elementList.push(astIdent);
             } else if (token >= Token.TokenQuestionMark && token <= Token.TokenCast) { // 操作符
                 const astOperator = {
@@ -539,11 +550,17 @@ class Parser {
     
         // 处理单目运算符++, --
         elementList.forEach((v, idx, arr) => {
+            if (v === undefined) {
+                return;
+            }
+
             if (v.astType === Ast.AstOperator &&
                 (v.token === Token.TokenIncrement || v.token === Token.TokenDecrement)) {
+                // ++ ++a; 不合法
                 if ((idx+1) >= arr.length || arr[idx+1].astType !== Ast.AstIdentifier) {
                     platform.programFail(`lvalue is required here`);
                 }
+                // a++ ++; ++a++; 不合法
                 if ((idx-1) > 0 && arr[idx-1] === undefined) {
                     platform.programFail(`lvalue is required here`);
                 }
@@ -551,7 +568,7 @@ class Parser {
                 arr[idx] = {
                     astType: Ast.AstPrefixOp,
                     token: v.token,
-                    astIdent: arr[idx+1]
+                    ident: arr[idx+1]
                 };
                 arr[idx+1] = undefined;
             } else if (v.astType === Ast.AstIdentifier) {
@@ -560,7 +577,7 @@ class Parser {
                     arr[idx] = {
                         astType: Ast.AstPostfixOp,
                         token: arr[idx+1].token,
-                        astIdent: v
+                        ident: v
                     };
                     arr[idx+1] = undefined;
                 }
@@ -587,14 +604,14 @@ class Parser {
                     astType = Ast.AstTakeAddress;
                     break;
                 case Token.TokenAsterisk:
-                    if ((prevAst === undefined || prevAst === Ast.AstOperator) &&
-                            nextAst !== undefined && nextAst !== Ast.AstOperator) {
+                    if ((prevAst === undefined || prevAst.astType === Ast.AstOperator) &&
+                        [Ast.AstIdentifier, Ast.AstTakeAddress, Ast.AstTakeValue].includes(nextAst.astType)) {
                         astType = Ast.AstTakeValue;
                     }
                     break;
                 case Token.TokenMinus:
-                    if ((prevAst === undefined || prevAst === Ast.AstOperator) &&
-                            nextAst !== undefined && nextAst !== Ast.AstOperator) {
+                    if ((prevAst === undefined || prevAst.astType === Ast.AstOperator) &&
+                            nextAst !== undefined && nextAst.astType !== Ast.AstOperator) {
                         astType = Ast.AstUMinus;
                     }
                     break;
@@ -613,7 +630,7 @@ class Parser {
                 arr[idx] = {
                     astType: astType,
                     token: v.token,
-                    astIdent: arr[nextIdx]
+                    ident: arr[nextIdx]
                 };
                 arr[nextIdx] = undefined;
             }
@@ -1016,7 +1033,7 @@ class Parser {
                 this.getToken();
                 break;
 
-            case Token.Identifier:
+            case Token.TokenIdentifier:
                 if (this.typedefs.get(firstValue) !== undefined) {
                     // identifier是由typedef定义的自定义类型
                     astResult = this.parseDeclaration();
