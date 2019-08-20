@@ -594,7 +594,7 @@ class Parser {
             const nextIdx = idx - 1;
             const prevAst = arr[prevIdx];
             const nextAst = arr[nextIdx];
-            const astType = null;
+            let astType = null;
 
             switch (v.token) {
                 case Token.TokenAmpersand:
@@ -1028,6 +1028,10 @@ class Parser {
         const {token: firstToken, value: firstValue} = this.lexer.peekTokenInfo();
 
         switch (firstToken) {
+            case Token.TokenEOF:
+                return null;
+                break;
+
             case Token.TokenSemicolon:
                 // 如果此语句只有分号，直接返回null
                 this.getToken();
@@ -1129,7 +1133,6 @@ class Parser {
 
             default:
                 platform.programFail(`Unrecognized leading token in a statement: ${firstToken}`);
-                return null;
         }
 
         return astResult;
@@ -1137,9 +1140,8 @@ class Parser {
 }
 
 const parser = new Parser('./test.c');
-let res;
-res = parser.parseStatement();
-console.log(res);
 
-res = parser.parseStatement();
-console.log(res);
+let res;
+while ((res = parser.parseStatement()) !== null) {
+    console.log(res);
+}
