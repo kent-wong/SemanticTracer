@@ -1,10 +1,11 @@
-int abc = 0;
+int max(int m, int n) {
+    return 100;
+}
 
 int main()
 {
-	int a = 10;
+	int a[10];
+    int b = max(1, 2);
 
-    ++ a;
-
-	return a;
+	return 0;
 }

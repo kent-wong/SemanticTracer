@@ -133,7 +133,7 @@ class Parser {
             case Token.TokenUnionType:
                 isUnionType = true;
             case Token.TokenStructType:
-                ({token, ident} = this.getTokenInfo());
+                ({token, value: ident} = this.getTokenInfo());
                 if (token !== Token.TokenIdentifier) {
                     platform.programFail(`expected struct name`);
                 }
@@ -172,7 +172,7 @@ class Parser {
         token = this.peekToken();
         if (token === Token.TokenIdentifier) {
             // 获取struct名字
-            ({token, structName} = this.getTokenInfo());
+            ({token, value: structName} = this.getTokenInfo());
             token = this.peekToken();
         } else {
             // 为此struct生成一个名字
@@ -303,7 +303,7 @@ class Parser {
             // 将指针数目清空
             astModelType.numPtrs = 0;
 
-            ({token, ident} = this.getTokenInfo());
+            ({token, value: ident} = this.getTokenInfo());
             if (token !== Token.TokenIdentifier) {
                 platform.programFail(`need a identifier here, instead got token type ${token}`);
             }
@@ -494,7 +494,7 @@ class Parser {
         do {
             if (this.lexer.peekIfMatch(Token.TokenIdentifier, Token.TokenOpenParenth)) {
                 // 函数调用
-                astFuncCall = this.parseFuncCall();
+                const astFuncCall = this.parseFuncCall();
                 elementList.push(astFuncCall);
             } else if (token === Token.TokenIdentifier) { // 变量
                 const astIdent = this.retrieveIdentAst();
@@ -531,7 +531,7 @@ class Parser {
                 this.getToken();
             } else if (this.lexer.forwardIfMatch(Token.TokenComma)) {
                 // 如果逗号不是解析停止符号，将产生表达式AST链表
-                astNextExpression = this.parseExpression(stopAt);
+                astNextExpression = this.parseExpression(...stopAt);
                 break; // 跳出
             } else if (token === Token.TokenSemicolon) { 
                 // 表达式解析不能跨越分号
@@ -542,7 +542,7 @@ class Parser {
             } else if (token === Token.TokenEOF) {
                 platform.programFail(`incomplete expression`);
             } else {
-                platform.programFail(`unrecognized token type ${Token.getTokenName(token)}`);
+                platform.programFail(`expression: unrecognized token type ${Token.getTokenName(token)}`);
             }
 
             token = this.peekToken();
@@ -650,9 +650,9 @@ class Parser {
     createAstBlock() {
         return {
             astType: Ast.AstBlock,
-            array: [],
+            statements: [],
             push: function(astStatement) {
-                return this.array.push(astStatement);
+                return this.statements.push(astStatement);
             }
         };
     }
@@ -937,7 +937,7 @@ class Parser {
                 continue ;
             }
 
-            let {token, paramName} = this.getTokenInfo();
+            let {token, value: paramName} = this.getTokenInfo();
             if (token !== Token.TokenIdentifier) {
                 platform.programFail(`expected an identifier, but got token ${Token.getTokenName(token)}`);
             }
@@ -996,7 +996,7 @@ class Parser {
     } // end of parseFuncDef()
 
     parseFuncCall() {
-        let {token, funcName} = this.getTokenInfo();
+        let {token, value: funcName} = this.getTokenInfo();
         assert(token === Token.TokenIdentifier,
                     `parseFuncCall(): expected identifier but got '${Token.getTokenName(token)}'`);
 
@@ -1007,11 +1007,13 @@ class Parser {
         const args = this.parseExpression(Token.TokenCloseParenth);
         this.getToken();
 
-        return astFuncCall = {
+        const astFuncCall = {
             astType: Ast.AstFuncCall,
             name: funcName,
             args: args
         };
+
+        return astFuncCall;
     }
 
     /* 解析一条语句，返回此语句对应的AST
