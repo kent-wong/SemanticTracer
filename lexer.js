@@ -655,6 +655,8 @@ class Lexer {
             while (this.pos !== this.end && this.getChar() !== '\n') {
                 this.increment();
             }
+            this.line ++;
+            this.column = 1;
         }
 
         if (this.pos === this.end) {
@@ -788,7 +790,6 @@ class Lexer {
                     break;
                 case '/':
                     if (this.getChar() === '/' || this.getChar() === '*') {
-                        this.increment();
                         this.skipComment(this.getChar());
                     } else {
                         GotToken = this.ifThen('=', Token.TokenDivideAssign, Token.TokenSlash);

@@ -453,7 +453,7 @@ class Parser {
             astType: Ast.AstAssign,
             lhs: lhs,
             assignType: assignType,
-            rhs: this.parseExpression(Token.TokenComma)
+            rhs: this.parseExpression(Token.TokenComma, Token.TokenSemicolon)
         };
 
         return astAssign;
