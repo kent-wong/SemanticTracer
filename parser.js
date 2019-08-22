@@ -471,25 +471,6 @@ class Parser {
         let astResult = null;
         let astNextExpression = null;
 
-        /*
-        let oldState = this.stateSave();
-        if (token === Token.TokenIdentifier) {
-            let astIdent = this.retrieveIdentAst();
-            if (astIdent === null) {
-                platform.programFail(`expect an identifier here`);
-            }
-
-            token = this.peekToken();
-            // 赋值语句单独处理
-            if (token >= Token.TokenAssign && token <= Token.TokenArithmeticExorAssign) {
-                this.getToken();
-                astResult = this.parseAssignment(astIdent, token);
-                return astResult;
-            }
-        }
-        this.stateRestore(oldState);
-        */
-
         token = this.peekToken();
         do {
             if (this.lexer.peekIfMatch(Token.TokenIdentifier, Token.TokenOpenParenth)) {
@@ -824,7 +805,7 @@ class Parser {
             let expression = this.parseExpression(Token.TokenColon);
             this.getToken();
             let block = this.parseBlock(Token.TokenCase, Token.TokenDefault, Token.TokenRightBrace);
-            astCase.push(caseBlock);
+            astSwitch.pushCase(expression, block);
         }
 
         if (this.lexer.forwardIfMatch(Token.TokenDefault)) {
@@ -833,9 +814,10 @@ class Parser {
             }
 
             let block = this.parseBlock(Token.TokenCase, Token.TokenDefault, Token.TokenRightBrace);
-            astCase.default = block;
+            astSwitch.default = block;
 
             // 这里不允许case语句出现在default之后
+            token = this.peekToken();
             if (token === Token.TokenCase) {
                 platform.programFail(`you should always put 'case label' before 'default label'`);
             }
@@ -845,9 +827,9 @@ class Parser {
             }
         }
 
-        token = this.getToken();
+        this.getToken();
 
-        return astCase;
+        return astSwitch;
     } // end of parseSwitch()
 
     parseIf() {
@@ -1106,6 +1088,27 @@ class Parser {
             case Token.TokenGoto:
                 break; 
 
+            case Token.TokenBreak:
+                this.getToken();
+                astResult = {
+                    astType: Ast.AstBreak,
+                    token: Token.TokenBreak
+                };
+                if (this.getToken() !== Token.TokenSemicolon) {
+                    platform.programFail(`missing ';' after expression`);
+                }
+                break;
+
+            case Token.TokenContinue:
+                this.getToken();
+                astResult = {
+                    astType: Ast.AstContinue,
+                    token: Token.TokenContinue
+                };
+                if (this.getToken() !== Token.TokenSemicolon) {
+                    platform.programFail(`missing ';' after expression`);
+                }
+                break;
             case Token.TokenReturn:
                 this.getToken();
                 astResult = {
