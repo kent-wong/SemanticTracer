@@ -22,19 +22,16 @@ class Evaluator {
         };
     }
 
-    evalDeclaration(astDecl) {
-        assert(astDecl.astType === Ast.AstDeclaration,
-                    `internal error: evalDeclaration(): param is NOT AstDeclaration`);
-        assert(astDecl.ident !== null,
-                    `internal error: evalDeclaration(): param has null ident`);
-
-        const dataType = this.createDataType(astDecl.dataType.astBaseType,
-                                                astDecl.dataType.numPtrs,
-                                                astDecl.dataType.ident);
-        const evalDecl = {
+    createVariable(dataType, ident, value) {
+        if (value === undefined) {
+            value = this.evalDefaultTypeValue(dataType);
+        }
+        const variable = {
             dataType: dataType,
-            ident: astDecl.ident,
-            value: null,
+            ident: ident,
+            value: value,
+            refTo: null,
+
             getValue(...indexes) {
                 if (indexes.length !== this.dataType.arrayIndexes.length) {
                     return null;
@@ -51,6 +48,18 @@ class Evaluator {
             }
         };
 
+        return variable;
+    }
+
+    evalDeclaration(astDecl) {
+        assert(astDecl.astType === Ast.AstDeclaration,
+                    `internal error: evalDeclaration(): param is NOT AstDeclaration`);
+        assert(astDecl.ident !== null,
+                    `internal error: evalDeclaration(): param has null ident`);
+
+        const dataType = this.createDataType(astDecl.dataType.astBaseType,
+                                                astDecl.dataType.numPtrs,
+                                                astDecl.dataType.ident);
         for (let idx of astDecl.arrayIndexes) {
             dataType.arrayIndexes.push(this.evalExpressionInt(idx));
         }
@@ -61,13 +70,9 @@ class Evaluator {
             if (!this.checkTypeValueCompatible(dataType, evalRHS)) {
                 platform.programFail(`incompatible value`);
             }
-        } else {
-            evalRHS = this.evalDefaultTypeValue(dataType);
         }
 
-        evalDecl.value = evalRHS;
-
-        return evalDecl;
+        return this.createVariable(dataType, astDecl.ident, evalRHS);
     }
 
     // 处理后自增运算符
