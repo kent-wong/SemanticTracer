@@ -700,12 +700,6 @@ class Parser {
             body: null
         };
 
-        /*
-        if (!skipFirstToken) {
-            assert(this.getToken() === Token.TokenWhile, `parseWhile(): first token is NOT TokenWhile`);
-        }
-        */
-
         if (!this.lexer.forwardIfMatch(Token.TokenOpenParenth)) {
             platform.programFail(`'(' expected`);
         }
@@ -732,19 +726,12 @@ class Parser {
             body: null
         };
 
-        /*
-        if (!skipFirstToken) {
-            assert(this.getToken() === Token.TokenDo, `parseDoWhile(): first token is NOT TokenDo`);
-        }
-        */
-
-        token = this.peekToken();
+        token = this.getToken();
         if (token !== Token.TokenLeftBrace) {
             platform.programFail(`missing '{' after do keyword`);
         }
 
-        astDoWhile.body = this.parseBlock(Token.TokenRightBrace);
-        this.getToken();
+        astDoWhile.body = this.parseBody();
         if (!this.lexer.forwardIfMatch(Token.TokenWhile)) {
             platform.programFail(`missing while keyword after '}'`);
         }
@@ -758,6 +745,9 @@ class Parser {
             let conditional = this.parseExpression(Token.TokenCloseParenth);
             astDoWhile.conditional = conditional;
             this.getToken();
+            if (this.getToken() !== Token.TokenSemicolon) {
+                platform.programFail(`missing ';' after ')'`);
+            }
         } else {
             platform.programFail(`expected expression before ')' token`);
         }
@@ -777,12 +767,6 @@ class Parser {
             finalExpression: null,
             block: null
         };
-
-        /*
-        if (!skipFirstToken) {
-            assert(this.getToken() === Token.TokenFor, `parseFor(): first token is NOT TokenFor`);
-        }
-        */
 
         if (!this.lexer.forwardIfMatch(Token.TokenOpenParenth)) {
             platform.programFail(`'(' expected`);
