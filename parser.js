@@ -2,7 +2,6 @@ const assert = require('assert');
 const Token = require('./interpreter');
 const BaseType = require('./basetype');
 const ValueType = require('./valuetype');
-const Value = require('./value');
 const Lexer = require('./lexer');
 const Scopes = require('./scopes');
 const platform = require('./platform');
@@ -355,7 +354,7 @@ class Parser {
             // 由声明语句生成的AST
             const astDecl = {
                 astType: Ast.AstDeclaration,
-                valueType: {
+                dataType: {
                     astBaseType: astModelType.astBaseType,
                     numPtrs: astModelType.numPtrs,
                     ident: astModelType.ident

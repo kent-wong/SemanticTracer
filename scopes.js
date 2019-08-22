@@ -32,6 +32,7 @@ class Scopes {
 
     pushScope(scope) {
         this.current = scope;
+        // 最近的scope插入到数组的最前面，便于后面进行遍历
         return this.locals.unshift(scope);
     }
 
@@ -65,11 +66,18 @@ class Scopes {
     findGlobalIdent(ident) {
         this.findIdent(ident, true);
     }
+
+    addIdent(ident, value) {
+        this.current.setIdent(ident, value);
+    }
 }
 
 const sc = new Scopes();
 console.log(sc.current === sc.global);
 sc.pushScope(new Scope('func1'));
+sc.addIdent('abc', 'int');
 console.log(sc.current);
+console.log(sc.findIdent('abc'));
+console.log('-------------------------------');
 
 module.exports = Scopes;
