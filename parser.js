@@ -419,7 +419,7 @@ class Parser {
             const astIdent = {
                 astType: Ast.AstIdentifier,
                 ident: value,
-                arrayIndexes: [],
+                refIndexes: [],
                 astParent: astResult,
                 refByPtr: refByPtr
             }
@@ -610,7 +610,7 @@ class Parser {
                 arr[idx] = {
                     astType: astType,
                     token: v.token,
-                    ident: arr[nextIdx]
+                    astIdent: arr[nextIdx]
                 };
                 arr[nextIdx] = undefined;
             }

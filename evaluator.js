@@ -133,11 +133,6 @@ class Evaluator {
 
     // 处理自增/自减运算
     evalSelfOp(astIdent, isPostfix, isIncr) {
-        assert(astIdent.astType === Ast.AstPostfixOp,
-                    `internal error: evalPostfixOp(): param is NOT AstPostfixOp`);
-        assert(astIdent.token === Token.TokenIncrement || astIdent.token === Token.TokenDecrement,
-                    `internal error: evalPostfixOp(): param operator token ${astIdent.token} is invalid`);
-
         // 默认为后自增运算符
         if (isPostfix === undefined) {
             isPostfix = true;
@@ -180,11 +175,11 @@ class Evaluator {
 
         const delta = (isIncr ? 1 : -1);
         if (isPostfix) {
-            const tempVariable = this.copyElement(astIdent.arrayIndexes);
-            this.setValueIncr(delta, astIdent.arrayIndexes);
+            const tempVariable = this.copyElement(astIdent.refIndexes);
+            this.setValueIncr(delta, astIdent.refIndexes);
         } else {
-            this.setValueIncr(delta, astIdent.arrayIndexes);
-            const tempVariable = this.copyElement(astIdent.arrayIndexes);
+            this.setValueIncr(delta, astIdent.refIndexes);
+            const tempVariable = this.copyElement(astIdent.refIndexes);
         }
 
         return tempVariable;
@@ -240,12 +235,12 @@ class Evaluator {
 
     // 检查变量引用中使用的数组下标是否合法
     assertCompatibleArrayIndexes(variable, astIdent) {
-        if (astIdent.arrayIndexes.length === 0) {
+        if (astIdent.refIndexes.length === 0) {
             return;
         }
 
         // 检查数组维度的一致性
-        if (variable.arrayIndexes.length !== astIdent.arrayIndexes.length) {
+        if (variable.arrayIndexes.length !== astIdent.refIndexes.length) {
             if (variable.arrayIndexes.length === 0) {
                 platform.programFail(`${variable.ident} is not an array`);
             } else {
@@ -254,11 +249,51 @@ class Evaluator {
         }
 
         for (let i = 0; i < variable.arrayIndexes.length; i ++) {
-            if (variable.arrayIndexes[i] <= astIdent.arrayIndexes[i]) {
-                platform.programFail(`array index ${astIdent.arrayIndexes[i]} overflowed`);
+            if (variable.arrayIndexes[i] <= astIdent.refIndexes[i]) {
+                platform.programFail(`array index ${astIdent.refIndexes[i]} overflowed`);
             }
         }
     }
+
+    // 取地址运算符
+    evalTakeAddress(astTakeAddress) {
+        const astIdent = astTakeAddress.astIdent;
+
+        // 通过AST获取变量，此变量必须存在于当前有效的scopes中
+        const variable = this.evalGetVariable(astIdent.ident);
+        if (variable === null) {
+            platform.programFail(`${astIdent.ident} undeclared`);
+        }
+        // 变量必须是左值
+        if (variable.ident === null) {
+            platform.programFail(`lvalue required`);
+        }
+
+        this.assertCompatibleArrayIndexes(variable, astIdent);
+        const ptrType = this.createDataType(variable.dataType.basetype,
+                                                variable.dataType,numPtrs + 1, // 增加一层指针
+                                                variable.dataType.customType);
+        //const tempValue = variable.getValue(indexes);
+        const ptrVariable = this.createVariable(ptrType, null, null);
+        ptrVariable.refTo = {
+            variable: variable,
+            refIndexes: astIdent.refIndexes
+        };
+
+        if (variable.arrayIndexes.length !== 0 && astIdent.refIndexes.length === 0) {
+            // 如果变量是数组本身，那么取其第一个元素的指针的指针
+            ptrVariable.dataType.numPtrs ++;
+            ptrVariable.refTo.refIndexes.length = variable.arrayIndexes.length;
+            ptrVariable.refTo.refIndexes.fill(0);
+        }
+
+        return ptrVariable;
+    }
+
+    evalTakeValue(astTakeValue) {
+        const astIdent = astTakeValue.astIdent;
+    }
+
 
     evalExpression() {
     }
