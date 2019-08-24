@@ -601,6 +601,12 @@ class Parser {
                     }
                     astType = Ast.AstUnaryNot;
                     break;
+                case Token.TokenUnaryExor:
+                    if (nextAst === undefined || nextAst.astType === Ast.AstOperator) {
+                        platform.programFail(`value is required after unary not`);
+                    }
+                    astType = Ast.AstUnaryExor;
+                    break;
                 default:
                     astType = null;
                     break;

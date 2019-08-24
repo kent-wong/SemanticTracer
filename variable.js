@@ -68,6 +68,9 @@ class Variable {
                         this.value = -this.value;
                         break;
                     case Token.TokenUnaryNot:
+                        this.value = !this.value;
+                        break;
+                    case Token.TokenUnaryExor:
                         this.value = ~this.value;
                         break;
                     case Token.TokenIncrement:
@@ -104,6 +107,9 @@ class Variable {
                     v[indexes[-1]] = -this.value;
                     break;
                 case Token.TokenUnaryNot:
+                    v[indexes[-1]] = !this.value;
+                    break;
+                case Token.TokenUnaryExor:
                     v[indexes[-1]] = ~this.value;
                     break;
                 case Token.TokenIncrement:
@@ -133,8 +139,12 @@ class Variable {
         this.setValue(value, indexes, Token.TokenMinus);
     }
 
-    setValueUnaryNot(value, indexes) {
+    setValueNot(value, indexes) {
         this.setValue(value, indexes, Token.TokenUnaryNot);
+    }
+
+    setValueExor(value, indexes) {
+        this.setValue(value, indexes, Token.TokenUnaryExor);
     }
 
     // 创建一个variable，以指定的元素为其内容

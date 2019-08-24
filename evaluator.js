@@ -198,6 +198,17 @@ class Evaluator {
         return variable.createElementVariable(astIdent.accessIndexes);
     }
 
+    evalTakeExor(astExor) {
+        const astIdent = astExor.astIdent;
+        const variable = this.evalGetVariable(astIdent.ident);
+        if (variable === null) {
+            platform.programFail(`${astIdent.ident} undeclared`);
+        }
+
+        variable.setValueExor(null, astIdent.accessIndexes);
+        return variable.createElementVariable(astIdent.accessIndexes);
+    }
+
     evalVariableFromAstIdent(astIdent) {
         const variable = this.evalGetVariable(astIdent.ident);
         if (variable === null) {
@@ -232,79 +243,107 @@ class Evaluator {
                 v = this.evalTakeNot(astElement);
                 token = Token.TokenIdentifier;
             } else if (astElement.astType === Ast.AstOperator) {
+                const prio = new Map([
+                    // 第三等优先级
+                    [Token.TokenAsterisk, 3],
+                    [Token.TokenSlash, 3],
+                    [Token.TokenModulus, 3],
+
+                    // 第四等优先级
+                    [Token.TokenPlus, 4],
+                    [Token.TokenMinus, 4],
+
+                    // 第五等优先级
+                    [Token.TokenShiftLeft, 5],
+                    [Token.TokenShiftRight, 5],
+
+                    // 第六等优先级
+                    [Token.TokenLessThan, 6],
+                    [Token.TokenGreaterThan, 6],
+                    [Token.TokenLessEqual, 6],
+                    [Token.TokenGreaterEqual, 6],
+
+                    // 第七等优先级
+                    [Token.TokenEqual, 7],
+                    [Token.TokenNotEqual, 7],
+
+                    // 第八等优先级
+                    [Token.TokenAmpersand, 8],
+
+                    // 第九等优先级
+                    [Token.TokenArithmeticExor, 9],
+
+                    // 第十等优先级
+                    [Token.TokenArithmeticOr, 10],
+
+                    // 第十一等优先级
+                    [Token.TokenLogicalAnd, 11],
+
+                    // 第十二等优先级
+                    [Token.TokenLogicalOr, 12],
+
+                    // 第十三等优先级
+                    [Token.TokenQuestionMark, 13],
+                    [Token.TokenColon, 13]
+                ]);
+
+                token = astElement.token;
                 switch (astElement.token) {
-                    case TokenQuestionMark:
+                    case Token.TokenSizeof:
+                        // todo
                         break;
-                    case TokenColon:
-                        break;
-
-                    case TokenLogicalOr:
-                        break;
-                    case TokenLogicalAnd:
-                        break;
-                    case TokenArithmeticOr:
-                        break;
-                    case TokenArithmeticExor:
+                    case Token.TokenCast:
+                        // todo
                         break;
 
-                    case TokenEqual:
-                        break;
-                    case TokenNotEqual:
-                        break;
-                    case TokenLessThan:
-                        break;
-                    case TokenGreaterThan:
-                        break;
-                    case TokenLessEqual:
-                        break;
-                    case TokenGreaterEqual:
-                        break;
-
-                    case TokenShiftLeft:
-                        break;
-                    case TokenShiftRight:
-                        break;
-
-                    case TokenPlus:
-                        break;
-                    case TokenMinus:
-                        break;
-                    case TokenAsterisk:
-                        break;
-                    case TokenSlash:
-                        break;
-                    case TokenModulus:
-                        break;
-
-                    case TokenUnaryExor:
-                        break;
-                    case TokenSizeof:
-                        break;
-                    case TokenCast:
+                    case Token.TokenAsterisk:
+                    case Token.TokenSlash:
+                    case Token.TokenModulus:
+                    case Token.TokenPlus:
+                    case Token.TokenMinus:
+                    case Token.TokenShiftLeft:
+                    case Token.TokenShiftRight:
+                    case Token.TokenLessThan:
+                    case Token.TokenGreaterThan:
+                    case Token.TokenLessEqual:
+                    case Token.TokenGreaterEqual:
+                    case Token.TokenEqual:
+                    case Token.TokenNotEqual:
+                    case Token.TokenAmpersand:
+                    case Token.TokenArithmeticExor:
+                    case Token.TokenArithmeticOr:
+                    case Token.TokenLogicalAnd:
+                    case Token.TokenLogicalOr:
+                    case Token.TokenQuestionMark:
+                    case Token.TokenColon:
+                        v = prio.get(astElement.token);
+                        assert(v !== undefined, `operator ${astElement.token} has no prio`);
                         break;
                     default:
-                        break;
+                        assert(false, `Unrecognized operator type ${astElement.token}`);
                 }
             } else if (astElement.astType === Ast.AstConstant) {
+                token = astElement.token;
                 switch (astElement.token) {
                     case TokenIntegerConstant:
-                        break;
                     case TokenFPConstant:
-                        break;
                     case TokenStringConstant:
-                        break;
                     case TokenCharacterConstant:
+                        v = astElement.value;
                         break;
                     default:
+                        assert(false, `Unrecognized constant type ${astElement.token}`);
                         break;
                 }
             } else if (astElement.astType === Ast.AstExpression) {
                 // 子expression
+                token = Token.TokenIdentifier;
+                v = this.evalExpression(astElement);
             } else {
                 assert(false, `Unrecognized expression element type ${astElement.astType}`);
             }
 
-            stack.push(v);
+            stack.push({token: token, value: v});
         }
 
         return stack;
