@@ -1,3 +1,4 @@
+const Token = require('./interpreter');
 const platform = require('./platform');
 const Ast = require('./ast');
 
@@ -50,26 +51,36 @@ class Variable {
         return v;
     }
 
-    setValue(value, indexes, isIncr) {
-        if (isIncr === undefined) {
-            isIncr = false;
-        }
-
+    setValue(value, indexes, opToken) {
         if (indexes === undefined) {
             indexes = [];
         }
 
-        if (indexes.length !== this.dataType.arrayIndexes.length) {
-            platform.programFail(`unmatched index dimension`);
-        }
+        this.checkAccessIndexes(indexes);
 
-        if (indexes.length === 0) {
-            if (isIncr) {
-                this.value += value;
-            } else {
+        // 变量不是数组，直接对其值进行操作
+        if (this.dataType.arrayIndexes.length === 0) {
+            if (opToken === undefined) {
                 this.value = value;
+            } else {
+                switch (opToken) {
+                    case Token.TokenMinus:
+                        this.value = -this.value;
+                        break;
+                    case Token.TokenUnaryNot:
+                        this.value = ~this.value;
+                        break;
+                    case Token.TokenIncrement:
+                        this.value += value;
+                        break;
+                    case Token.TokenDecrement:
+                        this.value -= value;
+                        break;
+                    default:
+                        assert(false, `Unrecognized operator token ${opToken}`);
+                        break;
+                }
             }
-
             return;
         }
 
@@ -85,17 +96,45 @@ class Variable {
             platform.programFail(`array index ${indexes[-1]} out of bound`);
         }
 
-        if (isIncr) {
-            v[indexes[-1]] += value;
-        } else {
+        if (opToken === undefined) {
             v[indexes[-1]] = value;
+        } else {
+            switch (opToken) {
+                case Token.TokenMinus:
+                    v[indexes[-1]] = -this.value;
+                    break;
+                case Token.TokenUnaryNot:
+                    v[indexes[-1]] = ~this.value;
+                    break;
+                case Token.TokenIncrement:
+                    v[indexes[-1]] += value;
+                    break;
+                case Token.TokenDecrement:
+                    v[indexes[-1]] -= value;
+                    break;
+                default:
+                    assert(false, `Unrecognized operator token ${opToken}`);
+                    break;
+            }
         }
 
         return;
     }
 
     setValueIncr(value, indexes) {
-        this.setValue(value, indexes, true);
+        this.setValue(value, indexes, Token.TokenIncrement);
+    }
+
+    setValueDecr(value, indexes) {
+        this.setValue(value, indexes, Token.TokenDecrement);
+    }
+
+    setValueMinus(value, indexes) {
+        this.setValue(value, indexes, Token.TokenMinus);
+    }
+
+    setValueUnaryNot(value, indexes) {
+        this.setValue(value, indexes, Token.TokenUnaryNot);
     }
 
     // 创建一个variable，以指定的元素为其内容
@@ -139,6 +178,28 @@ class Variable {
         const theVariable = new Variable(theType, null, theValue);
 
         return theVariable;
+    }
+
+    isNumericType() {
+        if (this.dataType.customType !== null) {
+            // todo: 如果是typedef int sometype; 那么应该返回true
+            return false;
+        }
+
+        switch (this.dataType.basetype) {
+            case BaseType.TypeInt:
+            case BaseType.TypeShort:
+            case BaseType.TypeChar:
+            case BaseType.TypeLong:
+            case BaseType.TypeUnsignedInt:
+            case BaseType.TypeUnsignedShort:
+            case BaseType.TypeUnsignedChar:
+            case BaseType.TypeUnsignedLong:
+            case BaseType.TypeFP:
+                return true;
+        }
+
+        return false; // todo
     }
 }
 

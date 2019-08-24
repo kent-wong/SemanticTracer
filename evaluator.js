@@ -124,7 +124,6 @@ class Evaluator {
 
         switch (dataType.basetype) {
             case BaseType.TypeInt:
-            case BaseType.TypeInt:
             case BaseType.TypeShort:
             case BaseType.TypeChar:
             case BaseType.TypeLong:
@@ -164,11 +163,40 @@ class Evaluator {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
 
-        variable.checkAccessIndexes(astIdent.accessIndexes);
-
         // 变量或变量元素的类型必须是指针
+        if (variable.dataType.numPtrs === 0) {
+            platform.programFail(`not a pointer`);
+        }
+
+        const ptr = variable.getValue(astIdent.accessIndexes);
+        if (ptr === null) {
+            return null;
+        }
+
+        return ptr.refTo.createElementVariable(ptr.indexes);
     }
 
+    evalTakeMinus(astMinus) {
+        const astIdent = astMinus.astIdent;
+        const variable = this.evalGetVariable(astIdent.ident);
+        if (variable === null) {
+            platform.programFail(`${astIdent.ident} undeclared`);
+        }
+
+        variable.setValueMinus(null, astIdent.accessIndexes);
+        return variable.createElementVariable(astIdent.accessIndexes);
+    }
+
+    evalTakeNot(astNot) {
+        const astIdent = astNot.astIdent;
+        const variable = this.evalGetVariable(astIdent.ident);
+        if (variable === null) {
+            platform.programFail(`${astIdent.ident} undeclared`);
+        }
+
+        variable.setValueNot(null, astIdent.accessIndexes);
+        return variable.createElementVariable(astIdent.accessIndexes);
+    }
 
     evalExpression() {
     }
