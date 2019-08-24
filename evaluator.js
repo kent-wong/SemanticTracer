@@ -5,106 +5,11 @@ const ValueType = require('./valuetype');
 const Scopes = require('./scopes');
 const platform = require('./platform');
 const Ast = require('./ast');
+const Variable = require('./variable');
 
 class Evaluator {
     constructor() {
         this.scopes = new Scopes();
-    }
-
-    createDataType(baseType, numPtrs, customType) {
-        numPtrs = (numPtrs === undefined ? 0 : numPtrs);
-        customType = (customType === undefined ? null : customType);
-
-        return {
-            baseType: baseType,
-            numPtrs: numPtrs,
-            arrayIndexes: [],
-            customType: customType
-        };
-    }
-
-    // 创建一个变量
-    createVariable(dataType, ident, value) {
-        if (value === undefined) {
-            value = this.evalDefaultTypeValue(dataType);
-        }
-
-        const variable = {
-            dataType: dataType,
-            ident: ident,
-            value: value,
-            refTo: null,
-
-            getValue(indexes) {
-                if (indexes === undefined) {
-                    indexes = [];
-                }
-
-                if (indexes.length !== this.dataType.arrayIndexes.length) {
-                    return null;
-                }
-
-                let v = this.value;
-                for (let i = 0; i < indexes.length; i ++) {
-                    if (indexes[i] >= this.dataType.arrayIndexes[i]) {
-                        platform.programFail(`array index ${indexes[i]} out of bound`);
-                    }
-                    v = v[indexes[i]];
-                }
-                return v;
-            },
-            setValue(value, indexes, isIncr) {
-                if (isIncr === undefined) {
-                    isIncr = false;
-                }
-
-                if (indexes.length !== this.dataType.arrayIndexes.length) {
-                    return null;
-                }
-
-                if (indexes.length === 0) {
-                    if (isIncr) {
-                        this.value += value;
-                    } else {
-                        this.value = value;
-                    }
-
-                    return;
-                }
-
-                let v = this.value;
-                for (let i = 0; i < indexes.length - 1; i ++) {
-                    if (indexes[i] >= this.dataType.arrayIndexes[i]) {
-                        platform.programFail(`array index ${indexes[i]} out of bound`);
-                    }
-                    v = v[indexes[i]];
-                }
-
-                if (indexes[-1] >= this.dataType.arrayIndexes[-1]) {
-                    platform.programFail(`array index ${indexes[-1]} out of bound`);
-                }
-
-                if (isIncr) {
-                    v[indexes[-1]] += value;
-                } else {
-                    v[indexes[-1]] = value;
-                }
-
-                return;
-            },
-            setValueIncr(value, indexes) {
-                setValue(value, indexes, true);
-            },
-            copyElement(indexes) {
-                const tempType = this.createDataType(this.dataType.basetype);
-                const tempValue = variable.getValue(indexes);
-                const tempVariable = this.createVariable(tempType, null, tempValue);
-
-                return tempVariable;
-            }
-        };
-
-        return variable;
     }
 
     evalDeclaration(astDecl) {
@@ -128,7 +33,7 @@ class Evaluator {
             }
         }
 
-        return this.createVariable(dataType, astDecl.ident, evalRHS);
+        return new Variable(dataType, astDecl.ident, evalRHS);
     }
 
     // 处理自增/自减运算
@@ -148,7 +53,8 @@ class Evaluator {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
 
-        this.assertCompatibleArrayIndexes(variable, astIdent);
+        variable.checkAccessIndexes(astIdent.arrayIndexes);
+
         if (variable.arrayIndexes.length !== 0 && astIdent.arrayIndexes.length === 0) {
             // 数组本身不能进行自增操作
             if (astIdent.token === Token.TokenIncrement) {
@@ -175,11 +81,11 @@ class Evaluator {
 
         const delta = (isIncr ? 1 : -1);
         if (isPostfix) {
-            const tempVariable = this.copyElement(astIdent.refIndexes);
-            this.setValueIncr(delta, astIdent.refIndexes);
+            const tempVariable = variable.copyElement(astIdent.accessIndexes);
+            this.setValueIncr(delta, astIdent.accessIndexes);
         } else {
-            this.setValueIncr(delta, astIdent.refIndexes);
-            const tempVariable = this.copyElement(astIdent.refIndexes);
+            this.setValueIncr(delta, astIdent.accessIndexes);
+            const tempVariable = variable.copyElement(astIdent.accessIndexes);
         }
 
         return tempVariable;
@@ -233,28 +139,6 @@ class Evaluator {
         return false; // todo
     }
 
-    // 检查变量引用中使用的数组下标是否合法
-    assertCompatibleArrayIndexes(variable, astIdent) {
-        if (astIdent.refIndexes.length === 0) {
-            return;
-        }
-
-        // 检查数组维度的一致性
-        if (variable.arrayIndexes.length !== astIdent.refIndexes.length) {
-            if (variable.arrayIndexes.length === 0) {
-                platform.programFail(`${variable.ident} is not an array`);
-            } else {
-                platform.programFail(`unmatched indexes`);
-            }
-        }
-
-        for (let i = 0; i < variable.arrayIndexes.length; i ++) {
-            if (variable.arrayIndexes[i] <= astIdent.refIndexes[i]) {
-                platform.programFail(`array index ${astIdent.refIndexes[i]} overflowed`);
-            }
-        }
-    }
-
     // 取地址运算符
     evalTakeAddress(astTakeAddress) {
         const astIdent = astTakeAddress.astIdent;
@@ -265,33 +149,24 @@ class Evaluator {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
         // 变量必须是左值
-        if (variable.ident === null) {
+        if (variable.name === null) {
             platform.programFail(`lvalue required`);
         }
 
-        this.assertCompatibleArrayIndexes(variable, astIdent);
-        const ptrType = this.createDataType(variable.dataType.basetype,
-                                                variable.dataType,numPtrs + 1, // 增加一层指针
-                                                variable.dataType.customType);
-        //const tempValue = variable.getValue(indexes);
-        const ptrVariable = this.createVariable(ptrType, null, null);
-        ptrVariable.refTo = {
-            variable: variable,
-            refIndexes: astIdent.refIndexes
-        };
-
-        if (variable.arrayIndexes.length !== 0 && astIdent.refIndexes.length === 0) {
-            // 如果变量是数组本身，那么取其第一个元素的指针的指针
-            ptrVariable.dataType.numPtrs ++;
-            ptrVariable.refTo.refIndexes.length = variable.arrayIndexes.length;
-            ptrVariable.refTo.refIndexes.fill(0);
-        }
-
-        return ptrVariable;
+        variable.checkAccessIndexes(astIdent.accessIndexes);
+        return variable.createElementRefVariable(astIdent.accessIndexes);
     }
 
     evalTakeValue(astTakeValue) {
         const astIdent = astTakeValue.astIdent;
+        const variable = this.evalGetVariable(astIdent.ident);
+        if (variable === null) {
+            platform.programFail(`${astIdent.ident} undeclared`);
+        }
+
+        variable.checkAccessIndexes(astIdent.accessIndexes);
+
+        // 变量或变量元素的类型必须是指针
     }
 
 

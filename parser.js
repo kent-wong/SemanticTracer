@@ -419,7 +419,7 @@ class Parser {
             const astIdent = {
                 astType: Ast.AstIdentifier,
                 ident: value,
-                refIndexes: [],
+                accessIndexes: [],
                 astParent: astResult,
                 refByPtr: refByPtr
             }
