@@ -217,31 +217,60 @@ class Evaluator {
         return variable.createElementVariable(astIdent.accessIndexes);
     }
 
-    // 将表达式列表中的元素进行计算和转换，然后依次入栈
-    evalExpressionPushStack(elementList) {
+    // 元素列表中的运算符都是双目运算符
+    assertValidExpression(elementList) {
+        let expectOperator = false;
+
+        for (let astElement of elementList) {
+            if (astElement.astType === Ast.AstOperator) {
+                if (!expectOperator) {
+                    platform.programFail(`Unexpected operator ${astElement.token}`);
+                }
+                expectOperator = false;
+            } else {
+                if (expectOperator) {
+                    platform.programFail(`expect operator here`);
+                }
+                expectOperator = true;
+            }
+        }
+
+        if (!expectOperator) {
+            platform.programFail(`expect expression here`);
+        }
+    }
+
+    // 将表达式列表中的元素进行计算和转换
+    evalExpressionMap(elementList) {
         if (elementList.length === 0) {
             return null;
         }
 
-        const stack = [];
+        const expressionList = [];
+        let astType;
         let token;
         let v;
         for (let astElement of elementList) {
             if (astElement.astType === Ast.AstIdentifier) {
                 v = this.evalVariableFromAstIdent(astElement);
                 token = Token.TokenIdentifier;
+                astType = Ast.AstIdentifier;
             } else if (astElement.astType === Ast.AstTakeAddress) {
                 v = this.evalTakeAddress(astElement);
                 token = Token.TokenIdentifier;
+                astType = Ast.AstIdentifier;
             } else if (astElement.astType === Ast.AstTakeValue) {
                 v = this.evalTakeValue(astElement);
                 token = Token.TokenIdentifier;
+                astType = Ast.AstIdentifier;
             } else if (astElement.astType === Ast.AstUMinus) {
                 v = this.evalTakeUMinus(astElement);
                 token = Token.TokenIdentifier;
+                astType = Ast.AstIdentifier;
             } else if (astElement.astType === Ast.AstUnaryNot) {
                 v = this.evalTakeNot(astElement);
                 token = Token.TokenIdentifier;
+                astType = Ast.AstIdentifier;
             } else if (astElement.astType === Ast.AstOperator) {
                 const prio = new Map([
                     // 第三等优先级
@@ -288,6 +317,7 @@ class Evaluator {
                 ]);
 
                 token = astElement.token;
+                astType = Ast.AstOperator;
                 switch (astElement.token) {
                     case Token.TokenSizeof:
                         // todo
@@ -324,6 +354,7 @@ class Evaluator {
                 }
             } else if (astElement.astType === Ast.AstConstant) {
                 token = astElement.token;
+                astType = Ast.AstConstant;
                 switch (astElement.token) {
                     case TokenIntegerConstant:
                     case TokenFPConstant:
@@ -339,15 +370,53 @@ class Evaluator {
                 // 子expression
                 token = Token.TokenIdentifier;
                 v = this.evalExpression(astElement);
+                astType = Ast.AstIdentifier;
             } else {
                 assert(false, `Unrecognized expression element type ${astElement.astType}`);
             }
 
-            stack.push({token: token, value: v});
+            expressionList.push({astType: astType, token: token, value: v});
         }
 
-        return stack;
+        return expressionList;
     }
 
+    // 对表达式元素进行求值
+    evalExpressionReduce(expressionList) {
+        if (expressionList.length === 0) {
+            return null;
+        }
+
+        const stack = [];
+        let elem;
+        let bestPrio = 10000; // low enough
+        while (expressionList.length !== 0) {
+            elem = expressionList.shift();
+
+            // 处理操作符
+            if (elem.astType === Ast.AstOperator) {
+                let prio = elem.value;
+                if (prio < bestPrio) {
+                    bestPrio = prio;
+                } else {
+                    this.evalExpressionReduceStack(stack, prio);
+                    bestPrio = prio;
+                }
+            }
+
+            stack.push(elem);
+        }
+
+        this.evalExpressionReduceStack(stack, 10000);
+
+        return stack[0];
+    }
+
+    evalExpressionReduceStack(stack, basePrio) {
+    }
+
+    // 对表达式进行求值
+    evalExpression(AstExpression) {
+    }
 
 }
