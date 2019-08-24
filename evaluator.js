@@ -176,7 +176,7 @@ class Evaluator {
         return ptr.refTo.createElementVariable(ptr.indexes);
     }
 
-    evalTakeMinus(astMinus) {
+    evalTakeUMinus(astMinus) {
         const astIdent = astMinus.astIdent;
         const variable = this.evalGetVariable(astIdent.ident);
         if (variable === null) {
@@ -198,9 +198,117 @@ class Evaluator {
         return variable.createElementVariable(astIdent.accessIndexes);
     }
 
-    evalExpression() {
+    evalVariableFromAstIdent(astIdent) {
+        const variable = this.evalGetVariable(astIdent.ident);
+        if (variable === null) {
+            platform.programFail(`${astIdent.ident} undeclared`);
+        }
+        return variable.createElementVariable(astIdent.accessIndexes);
     }
 
-    evalExpressionInt() {
+    // 将表达式列表中的元素进行计算和转换，然后依次入栈
+    evalExpressionPushStack(elementList) {
+        if (elementList.length === 0) {
+            return null;
+        }
+
+        const stack = [];
+        let token;
+        let v;
+        for (let astElement of elementList) {
+            if (astElement.astType === Ast.AstIdentifier) {
+                v = this.evalVariableFromAstIdent(astElement);
+                token = Token.TokenIdentifier;
+            } else if (astElement.astType === Ast.AstTakeAddress) {
+                v = this.evalTakeAddress(astElement);
+                token = Token.TokenIdentifier;
+            } else if (astElement.astType === Ast.AstTakeValue) {
+                v = this.evalTakeValue(astElement);
+                token = Token.TokenIdentifier;
+            } else if (astElement.astType === Ast.AstUMinus) {
+                v = this.evalTakeUMinus(astElement);
+                token = Token.TokenIdentifier;
+            } else if (astElement.astType === Ast.AstUnaryNot) {
+                v = this.evalTakeNot(astElement);
+                token = Token.TokenIdentifier;
+            } else if (astElement.astType === Ast.AstOperator) {
+                switch (astElement.token) {
+                    case TokenQuestionMark:
+                        break;
+                    case TokenColon:
+                        break;
+
+                    case TokenLogicalOr:
+                        break;
+                    case TokenLogicalAnd:
+                        break;
+                    case TokenArithmeticOr:
+                        break;
+                    case TokenArithmeticExor:
+                        break;
+
+                    case TokenEqual:
+                        break;
+                    case TokenNotEqual:
+                        break;
+                    case TokenLessThan:
+                        break;
+                    case TokenGreaterThan:
+                        break;
+                    case TokenLessEqual:
+                        break;
+                    case TokenGreaterEqual:
+                        break;
+
+                    case TokenShiftLeft:
+                        break;
+                    case TokenShiftRight:
+                        break;
+
+                    case TokenPlus:
+                        break;
+                    case TokenMinus:
+                        break;
+                    case TokenAsterisk:
+                        break;
+                    case TokenSlash:
+                        break;
+                    case TokenModulus:
+                        break;
+
+                    case TokenUnaryExor:
+                        break;
+                    case TokenSizeof:
+                        break;
+                    case TokenCast:
+                        break;
+                    default:
+                        break;
+                }
+            } else if (astElement.astType === Ast.AstConstant) {
+                switch (astElement.token) {
+                    case TokenIntegerConstant:
+                        break;
+                    case TokenFPConstant:
+                        break;
+                    case TokenStringConstant:
+                        break;
+                    case TokenCharacterConstant:
+                        break;
+                    default:
+                        break;
+                }
+            } else if (astElement.astType === Ast.AstExpression) {
+                // 子expression
+            } else {
+                assert(false, `Unrecognized expression element type ${astElement.astType}`);
+            }
+
+            stack.push(v);
+        }
+
+        return stack;
     }
+
+
 }
