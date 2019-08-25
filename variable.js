@@ -1,4 +1,5 @@
 const Token = require('./interpreter');
+const BaseType = require('./basetype');
 const platform = require('./platform');
 const Ast = require('./ast');
 
@@ -210,6 +211,81 @@ class Variable {
         }
 
         return false; // todo
+    }
+
+    getNumericValue() {
+        if (!this.isNumericType()) {
+            return null;
+        }
+
+        if (this.dataType.numPtrs !== 0 || this.dataType.arrayIndexes.length !== 0) {
+            return null;
+        }
+
+        return this.values;
+    }
+
+    static createNumericVariable(baseType, name, value) {
+        const dataType = {
+            baseType: baseType,
+            numPtrs: 0,
+            arrayIndexes: []
+        };
+
+        return new Variable(dataType, name, value);
+    }
+
+    static evalBinaryOperator(lhs, rhs, opToken) {
+        let val1;
+        let val2;
+        let result;
+        let baseType;
+        let hasFP = false;
+
+        if (lhs.astType === Ast.AstIdentifier) {
+            val1 = lhs.value.getNumericValue();
+            if (val1 === null) {
+                platform.programFail(`left side of multiplication is NOT a valid number`);
+            }
+            if (lhs.value.dataType.baseType === BaseType.TypeFP) {
+                hasFP = true;
+            }
+        } else if (lhs.astType === Ast.AstConstant) {
+            if (lhs.token !== Token.TokenIntegerConstant && lhs.token !== Token.TokenFPConstant) {
+                platform.programFail(`expect a numeric constant or value`);
+            }
+            val1 = lhs.value;
+            if (lhs.token === Token.TokenFPConstant) {
+                hasFP = true;
+            }
+        }
+
+        if (rhs.astType === Ast.AstIdentifier) {
+            val2 = rhs.value.getNumericValue();
+            if (val2 === null) {
+                platform.programFail(`right side of multiplication is NOT a valid number`);
+            }
+            if (rhs.value.dataType.baseType === BaseType.TypeFP) {
+                hasFP = true;
+            }
+        } else if (rhs.astType === Ast.AstConstant) {
+            if (rhs.token !== Token.TokenIntegerConstant && rhs.token !== Token.TokenFPConstant) {
+                platform.programFail(`expect a numeric constant or value`);
+            }
+            val2 = rhs.value;
+            if (rhs.token === Token.TokenFPConstant) {
+                hasFP = true;
+            }
+        }
+
+        switch (opToken) {
+            case Token.TokenAsterisk:
+                result = val1 * val2;
+                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
+                break;
+        }
+
+        return Variable.createNumericVariable(baseType, null, result);
     }
 }
 

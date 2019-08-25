@@ -271,6 +271,10 @@ class Evaluator {
                 v = this.evalTakeNot(astElement);
                 token = Token.TokenIdentifier;
                 astType = Ast.AstIdentifier;
+            } else if (astElement.astType === Ast.AstUnaryExor) {
+                v = this.evalTakeExor(astElement);
+                token = Token.TokenIdentifier;
+                astType = Ast.AstIdentifier;
             } else if (astElement.astType === Ast.AstOperator) {
                 const prio = new Map([
                     // 第三等优先级
@@ -413,10 +417,108 @@ class Evaluator {
     }
 
     evalExpressionReduceStack(stack, basePrio) {
+        assert(stack.length !==0, `internal error: stack.length === 0`);
+        assert(stack.length % 2 === 1, `internal error: stack.length is even`);
+
+        if (stack.length === 1) {
+            return stack;
+        }
+
+        let op;
+        let lhs;
+        let rhs;
+        while (stack.length > 1) {
+            op = stack[-2];
+
+            assert(op.astType === Ast.AstOperator);
+            if (op.value > basePrio) {
+                break;
+            }
+
+            rhs = stack.pop();
+            stack.pop();
+            lhs = stack.pop();
+            switch (op.token) {
+                case Token.TokenAsterisk:
+                    result = Variable.opMultiply(lhs, rhs);
+                    break;
+                case Token.TokenSlash:
+                    result = Variable.opDivide(lhs, rhs);
+                    break;
+                case Token.TokenModulus:
+                    result = Variable.opModulus(lhs, rhs);
+                    break;
+                case Token.TokenPlus:
+                    result = Variable.opAdd(lhs, rhs);
+                    break;
+                case Token.TokenMinus:
+                    result = Variable.opSubtract(lhs, rhs);
+                    break;
+                case Token.TokenShiftLeft:
+                    result = Variable.opShiftLeft(lhs, rhs);
+                    break;
+                case Token.TokenShiftRight:
+                    result = Variable.opShiftRight(lhs, rhs);
+                    break;
+                case Token.TokenLessThan:
+                    result = Variable.opLessThan(lhs, rhs);
+                    break;
+                case Token.TokenLessEqual:
+                    result = Variable.opLessEqual(lhs, rhs);
+                    break;
+                case Token.TokenGreaterThan:
+                    result = Variable.opGreaterThan(lhs, rhs);
+                    break;
+                case Token.TokenGreaterEqual:
+                    result = Variable.opGreaterEqual(lhs, rhs);
+                    break;
+                case Token.TokenEqual:
+                    result = Variable.opEqual(lhs, rhs);
+                    break;
+                case Token.TokenNotEqual:
+                    result = Variable.opNotEqual(lhs, rhs);
+                    break;
+                case Token.TokenAmpersand:
+                    result = Variable.opBitAnd(lhs, rhs);
+                    break;
+                case Token.TokenArithmeticOr:
+                    result = Variable.opBitOr(lhs, rhs);
+                    break;
+                case Token.TokenArithmeticExor:
+                    result = Variable.opBitXor(lhs, rhs);
+                    break;
+                case Token.TokenLogicalAnd:
+                    result = Variable.opLogicalAnd(lhs, rhs);
+                    break;
+                case Token.TokenLogicalOr:
+                    result = Variable.opLogicalOr(lhs, rhs);
+                    break;
+                case Token.TokenQuestionMark:
+                    // todo
+                    break;
+                case Token.TokenColon:
+                    // todo
+                    break;
+            }
+
+            stack.push(result);
+        }
+
+        return stack;
     }
 
     // 对表达式进行求值
     evalExpression(AstExpression) {
+        let astExpr = AstExpression;
+        let result;
+        let expList;
+        do {
+            expList = this.evalExpressionMap(astExpr.elementList);
+            result = this.evalExpressionReduce(expList);
+            astExpr = astExpr.astNextExpression;
+        } while (astExpr !== null);
+
+        return result;
     }
 
 }
