@@ -279,9 +279,110 @@ class Variable {
         }
 
         switch (opToken) {
-            case Token.TokenAsterisk:
+            case Token.TokenAsterisk: // 乘法
                 result = val1 * val2;
                 baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenSlash: // 除法
+                if (val2 === 0) {
+                    platform.programFail(`division by zero`);
+                }
+                result = val1 / val2;
+                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenModulus: // 取模
+                if (val2 === 0) {
+                    platform.programFail(`division by zero`);
+                }
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary %`);
+                }
+                result = val1 % val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenPlus:
+                result = val1 + val2;
+                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenMinus:
+                result = val1 - val2;
+                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenShiftLeft:
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary <<`);
+                }
+                result = val1 << val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenShiftRight:
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary >>`);
+                }
+                result = val1 >> val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenLessThan:
+                result = val1 < val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenLessEqual:
+                result = val1 <= val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenGreaterThan:
+                result = val1 > val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenGreaterEqual:
+                result = val1 >= val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenEqual:
+                result = val1 === val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenNotEqual:
+                result = val1 !== val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenAmpersand:
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary &`);
+                }
+                result = val1 & val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenArithmeticOr:
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary |`);
+                }
+                result = val1 | val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenArithmeticExor:
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary ^`);
+                }
+                result = val1 ^ val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenLogicalAnd:
+                result = val1 && val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenLogicalOr:
+                result = val1 || val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenQuestionMark:
+                // todo
+                break;
+            case Token.TokenColon:
+                // todo
+                break;
+            default:
+                assert(false, `internal:evalBinaryOperator(): Unexpected operator token ${opToken}`);
                 break;
         }
 

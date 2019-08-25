@@ -238,7 +238,7 @@ class Evaluator {
         if (!expectOperator) {
             platform.programFail(`expect expression here`);
         }
-    }
+    } // end of assertValidExpression
 
     // 将表达式列表中的元素进行计算和转换
     evalExpressionMap(elementList) {
@@ -383,7 +383,7 @@ class Evaluator {
         }
 
         return expressionList;
-    }
+    } // end of evalExpressionMap
 
     // 对表达式元素进行求值
     evalExpressionReduce(expressionList) {
@@ -414,7 +414,7 @@ class Evaluator {
         this.evalExpressionReduceStack(stack, 10000);
 
         return stack[0];
-    }
+    } // end of evalExpressionReduce
 
     evalExpressionReduceStack(stack, basePrio) {
         assert(stack.length !==0, `internal error: stack.length === 0`);
@@ -440,59 +440,26 @@ class Evaluator {
             lhs = stack.pop();
             switch (op.token) {
                 case Token.TokenAsterisk:
-                    result = Variable.opMultiply(lhs, rhs);
-                    break;
                 case Token.TokenSlash:
-                    result = Variable.opDivide(lhs, rhs);
-                    break;
                 case Token.TokenModulus:
-                    result = Variable.opModulus(lhs, rhs);
-                    break;
                 case Token.TokenPlus:
-                    result = Variable.opAdd(lhs, rhs);
-                    break;
                 case Token.TokenMinus:
-                    result = Variable.opSubtract(lhs, rhs);
-                    break;
                 case Token.TokenShiftLeft:
-                    result = Variable.opShiftLeft(lhs, rhs);
-                    break;
                 case Token.TokenShiftRight:
-                    result = Variable.opShiftRight(lhs, rhs);
-                    break;
                 case Token.TokenLessThan:
-                    result = Variable.opLessThan(lhs, rhs);
-                    break;
                 case Token.TokenLessEqual:
-                    result = Variable.opLessEqual(lhs, rhs);
-                    break;
                 case Token.TokenGreaterThan:
-                    result = Variable.opGreaterThan(lhs, rhs);
-                    break;
                 case Token.TokenGreaterEqual:
-                    result = Variable.opGreaterEqual(lhs, rhs);
-                    break;
                 case Token.TokenEqual:
-                    result = Variable.opEqual(lhs, rhs);
-                    break;
                 case Token.TokenNotEqual:
-                    result = Variable.opNotEqual(lhs, rhs);
-                    break;
                 case Token.TokenAmpersand:
-                    result = Variable.opBitAnd(lhs, rhs);
-                    break;
                 case Token.TokenArithmeticOr:
-                    result = Variable.opBitOr(lhs, rhs);
-                    break;
                 case Token.TokenArithmeticExor:
-                    result = Variable.opBitXor(lhs, rhs);
-                    break;
                 case Token.TokenLogicalAnd:
-                    result = Variable.opLogicalAnd(lhs, rhs);
-                    break;
                 case Token.TokenLogicalOr:
-                    result = Variable.opLogicalOr(lhs, rhs);
+                    result = Variable.evalBinaryOperator(lhs, rhs, opToken);
                     break;
+
                 case Token.TokenQuestionMark:
                     // todo
                     break;
@@ -505,7 +472,7 @@ class Evaluator {
         }
 
         return stack;
-    }
+    } // end of evalExpressionReduceStack
 
     // 对表达式进行求值
     evalExpression(AstExpression) {
@@ -519,6 +486,6 @@ class Evaluator {
         } while (astExpr !== null);
 
         return result;
-    }
+    } // end of evalExpression
 
 }
