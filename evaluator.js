@@ -241,7 +241,7 @@ class Evaluator {
     } // end of assertValidExpression
 
     // 将表达式列表中的元素进行计算和转换
-    evalExpressionMap(elementList) {
+    expressionMap(elementList) {
         if (elementList.length === 0) {
             return null;
         }
@@ -383,10 +383,10 @@ class Evaluator {
         }
 
         return expressionList;
-    } // end of evalExpressionMap
+    } // end of expressionMap
 
     // 对表达式元素进行求值
-    evalExpressionReduce(expressionList) {
+    expressionReduce(expressionList) {
         if (expressionList.length === 0) {
             return null;
         }
@@ -403,7 +403,7 @@ class Evaluator {
                 if (prio < bestPrio) {
                     bestPrio = prio;
                 } else {
-                    this.evalExpressionReduceStack(stack, prio);
+                    this.expressionReduceStack(stack, prio);
                     bestPrio = prio;
                 }
             }
@@ -411,12 +411,20 @@ class Evaluator {
             stack.push(elem);
         }
 
-        this.evalExpressionReduceStack(stack, 10000);
+        this.expressionReduceStack(stack, 10000);
+
+        if (stack.length !== 1) {
+            platform.programFail(`invalid expression`);
+        }
+
+        if (stack[0].astType !== Ast.AstIdentifier) {
+            platform.programFail(`invalid expression`);
+        }
 
         return stack[0];
-    } // end of evalExpressionReduce
+    } // end of expressionReduce
 
-    evalExpressionReduceStack(stack, basePrio) {
+    expressionReduceStack(stack, basePrio) {
         assert(stack.length !==0, `internal error: stack.length === 0`);
         assert(stack.length % 2 === 1, `internal error: stack.length is even`);
 
@@ -427,6 +435,7 @@ class Evaluator {
         let op;
         let lhs;
         let rhs;
+        let result = null;
         while (stack.length > 1) {
             op = stack[-2];
 
@@ -461,10 +470,26 @@ class Evaluator {
                     break;
 
                 case Token.TokenQuestionMark:
-                    // todo
-                    break;
+                    return stack;
                 case Token.TokenColon:
-                    // todo
+                    let questionMark = stack[-4];
+                    if (questionMark !== undefined && questionMark.astType === Ast.AstOperator) {
+                        if (questionMark.token !== Token.TokenQuestionMark) {
+                            platform.programFail(`Unrecognized operator token ${questionMark.token},
+                                                    maybe you want to specify '?' operator`);
+                        }
+                        stack.pop();
+                        let conditional = stack.pop();
+                        if (conditional === undefined) {
+                            platform.programFail(`expect expression before '?'`);
+                        }
+                        result = Variable.evalTernaryOperator(conditional, lhs, rhs);
+                    } else {
+                        // todo
+                    }
+                    break;
+                default:
+                    assert(false, `internal:expressionReduceStack():switch(${opToken}): unexpected token`);
                     break;
             }
 
@@ -472,7 +497,7 @@ class Evaluator {
         }
 
         return stack;
-    } // end of evalExpressionReduceStack
+    } // end of expressionReduceStack
 
     // 对表达式进行求值
     evalExpression(AstExpression) {
@@ -480,8 +505,8 @@ class Evaluator {
         let result;
         let expList;
         do {
-            expList = this.evalExpressionMap(astExpr.elementList);
-            result = this.evalExpressionReduce(expList);
+            expList = this.expressionMap(astExpr.elementList);
+            result = this.expressionReduce(expList);
             astExpr = astExpr.astNextExpression;
         } while (astExpr !== null);
 

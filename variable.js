@@ -387,7 +387,34 @@ class Variable {
         }
 
         return Variable.createNumericVariable(baseType, null, result);
+    } // end of evalBinaryOperator
+
+
+    static evalBinaryOperator(conditional, lhs, rhs) {
+        let value;
+
+        if (conditional.astType === Ast.AstIdentifier) {
+            value = conditional.value.getNumericValue();
+            if (value === null) {
+                platform.programFail(`expect a numeric constant or expression before '?'`);
+            }
+        } else if (conditional.astType === Ast.AstConstant) {
+            if (conditional.token !== Token.TokenIntegerConstant &&
+                    conditional.token !== Token.TokenFPConstant) {
+                platform.programFail(`expect a numeric constant or expression before '?'`);
+            }
+            value = conditional.value;
+        }
+
+        if (value !== 0) {
+            return lhs;
+        }
+
+        return rhs;
     }
+
+
+
 }
 
 module.exports = Variable;
