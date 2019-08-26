@@ -524,9 +524,21 @@ class Parser {
 
         return {
             astType: Ast.AstTernary,
-            conditional: conditional,
-            expr1: expr1,
-            expr2: expr2
+            conditional: {
+                astType: Ast.AstExpression,
+                elementList: conditional,
+                next: null
+            },
+            expr1: {
+                astType: Ast.AstExpression,
+                elementList: expr1,
+                next: null
+            },
+            expr2: {
+                astType: Ast.AstExpression,
+                elementList: expr2,
+                next: null
+            }
         };
     } // end of parseTernaryExpression
 

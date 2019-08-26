@@ -1,7 +1,6 @@
 const Token = require('./interpreter');
 const BaseType = require('./basetype');
 const platform = require('./platform');
-const Ast = require('./ast');
 
 class Variable {
     constructor(dataType, name, values) {
@@ -52,11 +51,7 @@ class Variable {
         return v;
     }
 
-    setValue(value, indexes, opToken) {
-        if (indexes === undefined) {
-            indexes = [];
-        }
-
+    setValue(indexes, value, opToken) {
         this.checkAccessIndexes(indexes);
 
         // 变量不是数组，直接对其值进行操作
@@ -128,24 +123,24 @@ class Variable {
         return;
     }
 
-    setValueIncr(value, indexes) {
-        this.setValue(value, indexes, Token.TokenIncrement);
+    setValueIncr(indexes, value) {
+        this.setValue(indexes, value, Token.TokenIncrement);
     }
 
-    setValueDecr(value, indexes) {
-        this.setValue(value, indexes, Token.TokenDecrement);
+    setValueDecr(indexes, value) {
+        this.setValue(indexes, value, Token.TokenDecrement);
     }
 
-    setValueMinus(value, indexes) {
-        this.setValue(value, indexes, Token.TokenMinus);
+    setValueMinus(indexes, value) {
+        this.setValue(indexes, value, Token.TokenMinus);
     }
 
-    setValueNot(value, indexes) {
-        this.setValue(value, indexes, Token.TokenUnaryNot);
+    setValueNot(indexes, value) {
+        this.setValue(indexes, value, Token.TokenUnaryNot);
     }
 
-    setValueExor(value, indexes) {
-        this.setValue(value, indexes, Token.TokenUnaryExor);
+    setValueExor(indexes, value) {
+        this.setValue(indexes, value, Token.TokenUnaryExor);
     }
 
     // 创建一个variable，以指定的元素为其内容
@@ -235,201 +230,6 @@ class Variable {
         return new Variable(dataType, name, value);
     }
 
-    // 进行单目运算符、函数调用，子表达式的计算
-    static evalUnaryOperator(ast) {
-        switch (ast.astType) {
-            case Ast.AstPrefixOp:
-                break;
-            case Ast.AstPostfixOp:
-                break;
-            case Ast.AstFuncCall:
-                break;
-            case Ast.AstExpression:
-                break;
-            default:
-                break;
-        }
-    }
-
-    static evalBinaryOperator(lhs, rhs, opToken) {
-        let val1;
-        let val2;
-        let result;
-        let baseType;
-        let hasFP = false;
-
-        if (lhs.astType === Ast.AstIdentifier) {
-            val1 = lhs.value.getNumericValue();
-            if (val1 === null) {
-                platform.programFail(`left side of multiplication is NOT a valid number`);
-            }
-            if (lhs.value.dataType.baseType === BaseType.TypeFP) {
-                hasFP = true;
-            }
-        } else if (lhs.astType === Ast.AstConstant) {
-            if (lhs.token !== Token.TokenIntegerConstant && lhs.token !== Token.TokenFPConstant) {
-                platform.programFail(`expect a numeric constant or value`);
-            }
-            val1 = lhs.value;
-            if (lhs.token === Token.TokenFPConstant) {
-                hasFP = true;
-            }
-        }
-
-        if (rhs.astType === Ast.AstIdentifier) {
-            val2 = rhs.value.getNumericValue();
-            if (val2 === null) {
-                platform.programFail(`right side of multiplication is NOT a valid number`);
-            }
-            if (rhs.value.dataType.baseType === BaseType.TypeFP) {
-                hasFP = true;
-            }
-        } else if (rhs.astType === Ast.AstConstant) {
-            if (rhs.token !== Token.TokenIntegerConstant && rhs.token !== Token.TokenFPConstant) {
-                platform.programFail(`expect a numeric constant or value`);
-            }
-            val2 = rhs.value;
-            if (rhs.token === Token.TokenFPConstant) {
-                hasFP = true;
-            }
-        }
-
-        switch (opToken) {
-            case Token.TokenAsterisk: // 乘法
-                result = val1 * val2;
-                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenSlash: // 除法
-                if (val2 === 0) {
-                    platform.programFail(`division by zero`);
-                }
-                result = val1 / val2;
-                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenModulus: // 取模
-                if (val2 === 0) {
-                    platform.programFail(`division by zero`);
-                }
-                if (hasFP) {
-                    platform.programFail(`invalid operands to binary %`);
-                }
-                result = val1 % val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenPlus:
-                result = val1 + val2;
-                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenMinus:
-                result = val1 - val2;
-                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenShiftLeft:
-                if (hasFP) {
-                    platform.programFail(`invalid operands to binary <<`);
-                }
-                result = val1 << val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenShiftRight:
-                if (hasFP) {
-                    platform.programFail(`invalid operands to binary >>`);
-                }
-                result = val1 >> val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenLessThan:
-                result = val1 < val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenLessEqual:
-                result = val1 <= val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenGreaterThan:
-                result = val1 > val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenGreaterEqual:
-                result = val1 >= val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenEqual:
-                result = val1 === val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenNotEqual:
-                result = val1 !== val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenAmpersand:
-                if (hasFP) {
-                    platform.programFail(`invalid operands to binary &`);
-                }
-                result = val1 & val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenArithmeticOr:
-                if (hasFP) {
-                    platform.programFail(`invalid operands to binary |`);
-                }
-                result = val1 | val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenArithmeticExor:
-                if (hasFP) {
-                    platform.programFail(`invalid operands to binary ^`);
-                }
-                result = val1 ^ val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenLogicalAnd:
-                result = val1 && val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenLogicalOr:
-                result = val1 || val2;
-                baseType = BaseType.TypeUnsignedLong;
-                break;
-            case Token.TokenQuestionMark:
-                // todo
-                break;
-            case Token.TokenColon:
-                // todo
-                break;
-            default:
-                assert(false, `internal:evalBinaryOperator(): Unexpected operator token ${opToken}`);
-                break;
-        }
-
-        return Variable.createNumericVariable(baseType, null, result);
-    } // end of evalBinaryOperator
-
-
-    /*
-    static evalTernaryOperator(conditional, lhs, rhs) {
-        let value;
-
-        if (conditional.astType === Ast.AstIdentifier) {
-            value = conditional.value.getNumericValue();
-            if (value === null) {
-                platform.programFail(`expect a numeric constant or expression before '?'`);
-            }
-        } else if (conditional.astType === Ast.AstConstant) {
-            if (conditional.token !== Token.TokenIntegerConstant &&
-                    conditional.token !== Token.TokenFPConstant) {
-                platform.programFail(`expect a numeric constant or expression before '?'`);
-            }
-            value = conditional.value;
-        }
-
-        if (value !== 0) {
-            return lhs;
-        }
-
-        return rhs;
-    }
-    */
 
 
 

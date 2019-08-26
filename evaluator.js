@@ -82,22 +82,11 @@ class Evaluator {
 
     // 处理自增/自减运算
     evalSelfOp(astIdent, isPostfix, isIncr) {
-        // 默认为后自增运算符
-        if (isPostfix === undefined) {
-            isPostfix = true;
-        }
-
-        if (isIncr === undefined) {
-            isIncr = true;
-        }
-
         // 通过AST获取变量，此变量必须存在于当前有效的scopes中
         const variable = this.evalGetVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
-
-        variable.checkAccessIndexes(astIdent.arrayIndexes);
 
         if (variable.arrayIndexes.length !== 0 && astIdent.arrayIndexes.length === 0) {
             // 数组本身不能进行自增操作
@@ -109,7 +98,7 @@ class Evaluator {
         }
 
         // 检查++/--操作能否在此variable或其元素上进行
-        const ok = this.checkSelfOpType(variable.dataType);
+        const ok = variable.isNumericType();
         if (!ok) {
             if (astIdent.token === Token.TokenIncrement) {
                 platform.programFail(`wrong type argument to increment`);
@@ -125,11 +114,11 @@ class Evaluator {
 
         const delta = (isIncr ? 1 : -1);
         if (isPostfix) {
-            const tempVariable = variable.copyElement(astIdent.accessIndexes);
-            this.setValueIncr(delta, astIdent.accessIndexes);
+            const tempVariable = variable.createElementVariable(astIdent.accessIndexes);
+            variable.setValueIncr(astIdent.accessIndexes, delta);
         } else {
-            this.setValueIncr(delta, astIdent.accessIndexes);
-            const tempVariable = variable.copyElement(astIdent.accessIndexes);
+            variable.setValueIncr(astIdent.accessIndexes, delta);
+            const tempVariable = variable.createElementVariable(astIdent.accessIndexes);
         }
 
         return tempVariable;
@@ -157,29 +146,6 @@ class Evaluator {
             v = null;
         }
         return v;
-    }
-
-    // 检查变量的数据类型是否允许自增/自减操作
-    checkSelfOpType(dataType) {
-        if (dataType.customType !== null) {
-            // todo: 如果是typedef int sometype; 那么应该返回true
-            return false;
-        }
-
-        switch (dataType.basetype) {
-            case BaseType.TypeInt:
-            case BaseType.TypeShort:
-            case BaseType.TypeChar:
-            case BaseType.TypeLong:
-            case BaseType.TypeUnsignedInt:
-            case BaseType.TypeUnsignedShort:
-            case BaseType.TypeUnsignedChar:
-            case BaseType.TypeUnsignedLong:
-            case BaseType.TypeFP:
-                return true;
-        }
-
-        return false; // todo
     }
 
     // 取地址运算符
@@ -292,33 +258,28 @@ class Evaluator {
 
         const expressionList = [];
         let astType;
-        let token;
-        let v;
+        let token = null;
+        let value = null;
         for (let astElement of elementList) {
+            token = null;
             if (astElement.astType === Ast.AstIdentifier) {
-                v = this.evalVariableFromAstIdent(astElement);
-                token = Token.TokenIdentifier;
-                astType = Ast.AstIdentifier;
+                value = this.evalVariableFromAstIdent(astElement);
+                astType = Ast.AstVariable;
             } else if (astElement.astType === Ast.AstTakeAddress) {
-                v = this.evalTakeAddress(astElement);
-                token = Token.TokenIdentifier;
-                astType = Ast.AstIdentifier;
+                value = this.evalTakeAddress(astElement);
+                astType = Ast.AstVariable;
             } else if (astElement.astType === Ast.AstTakeValue) {
-                v = this.evalTakeValue(astElement);
-                token = Token.TokenIdentifier;
-                astType = Ast.AstIdentifier;
+                value = this.evalTakeValue(astElement);
+                astType = Ast.AstVariable;
             } else if (astElement.astType === Ast.AstUMinus) {
-                v = this.evalTakeUMinus(astElement);
-                token = Token.TokenIdentifier;
-                astType = Ast.AstIdentifier;
+                value = this.evalTakeUMinus(astElement);
+                astType = Ast.AstVariable;
             } else if (astElement.astType === Ast.AstUnaryNot) {
-                v = this.evalTakeNot(astElement);
-                token = Token.TokenIdentifier;
-                astType = Ast.AstIdentifier;
+                value = this.evalTakeNot(astElement);
+                astType = Ast.AstVariable;
             } else if (astElement.astType === Ast.AstUnaryExor) {
-                v = this.evalTakeExor(astElement);
-                token = Token.TokenIdentifier;
-                astType = Ast.AstIdentifier;
+                value = this.evalTakeExor(astElement);
+                astType = Ast.AstVariable;
             } else if (astElement.astType === Ast.AstOperator) {
                 astType = Ast.AstOperator;
                 token = astElement.token;
@@ -350,33 +311,18 @@ class Evaluator {
                     case Token.TokenLogicalOr:
                     //case Token.TokenQuestionMark:
                     //case Token.TokenColon:
-                        v = prio.get(astElement.token);
-                        assert(v !== undefined, `operator ${astElement.token} has no prio`);
+                        value = prio.get(astElement.token);
+                        assert(value !== undefined, `operator ${astElement.token} has no prio`);
                         break;
                     default:
                         assert(false, `Unrecognized operator type ${astElement.token}`);
                 }
-            /*} else if (astElement.astType === Ast.AstConstant) {
-                astType = Ast.AstConstant;
-                token = astElement.token;
-                switch (astElement.token) {
-                    case TokenIntegerConstant:
-                    case TokenFPConstant:
-                    case TokenStringConstant:
-                    case TokenCharacterConstant:
-                        v = astElement.value;
-                        break;
-                    default:
-                        assert(false, `Unrecognized constant type ${astElement.token}`);
-                        break;
-                }
-            */
             } else {
                 expressionList.push(astElement);
                 continue;
             }
 
-            expressionList.push({astType: astType, token: token, value: v});
+            expressionList.push({astType: astType, token: token, value: value});
         }
 
         return expressionList;
@@ -408,7 +354,13 @@ class Evaluator {
                         if (stack.length !== 1) {
                             platform.programFail(`invalid expression`);
                         }
-                        if (stack[0].validateToBoolean()) {
+
+                        const boolValue = stack[0].getNumericValue();
+                        if (boolValue === null) {
+                            platform.programFail('expression before "||" can NOT be evaluated to boolean');
+                        }
+
+                        if (boolValue !== 0) {
                             return stack[0];
                         }
                     }
@@ -454,8 +406,12 @@ class Evaluator {
             }
 
             rhs = stack.pop();
+            rhs = this.evalUnaryOperator(rhs);
+
             stack.pop();
             lhs = stack.pop();
+            lhs = this.evalUnaryOperator(lhs);
+
             switch (op.token) {
                 case Token.TokenAsterisk:
                 case Token.TokenSlash:
@@ -475,7 +431,7 @@ class Evaluator {
                 case Token.TokenArithmeticExor:
                 case Token.TokenLogicalAnd:
                 case Token.TokenLogicalOr:
-                    result = Variable.evalBinaryOperator(lhs, rhs, opToken);
+                    result = this.evalBinaryOperator(lhs, rhs, opToken);
                     break;
 
                 /*
@@ -516,6 +472,14 @@ class Evaluator {
         let result;
         let expList;
         do {
+            // 先处理三目运算符
+            while (astExpr.elementList.length === 1 &&
+                  astExpr.elementList[0].astType === Ast.AstTernary) {
+                let astTernary = astExpr.elementList[0];
+                let condition = this.evalExpressionBoolean(astTernary.conditional);
+                astExpr.elementList = condition ? astTernary.expr1.elementList : astTernary.expr2.elementList;
+            }
+
             expList = this.expressionMap(astExpr.elementList);
             result = this.expressionReduce(expList);
             astExpr = astExpr.astNextExpression;
@@ -534,4 +498,203 @@ class Evaluator {
 
         return (value !== 0);
     }
+
+    // 进行单目运算符、函数调用，子表达式的计算
+    evalUnaryOperator(ast) {
+        let result = ast;
+
+        switch (ast.astType) {
+            case Ast.AstPrefixOp:
+                if (ast.token === Token.TokenIncrement) {
+                    result = this.evalPrefixIncr(ast.ident);
+                } else {
+                    result = this.evalPrefixDecr(ast.ident);
+                }
+                break;
+            case Ast.AstPostfixOp:
+                if (ast.token === Token.TokenIncrement) {
+                    result = this.evalPostfixIncr(ast.ident);
+                } else {
+                    result = this.evalPostfixDecr(ast.ident);
+                }
+                break;
+            case Ast.AstFuncCall:
+                break;
+            case Ast.AstExpression:
+                result = this.evalExpression(ast);
+                break;
+            default:
+                break;
+        }
+
+        return {
+            astType: Ast.AstVariable,
+            token: null,
+            value: result
+        };
+    } // end of evalUnaryOperator
+
+    evalBinaryOperator(lhs, rhs, opToken) {
+        let val1;
+        let val2;
+        let result;
+        let baseType;
+        let hasFP = false;
+
+        if (lhs.astType === Ast.AstVariable) {
+            val1 = lhs.value.getNumericValue();
+            if (val1 === null) {
+                platform.programFail(`left side of operation is NOT a valid number`);
+            }
+            if (lhs.value.dataType.baseType === BaseType.TypeFP) {
+                hasFP = true;
+            }
+        } else if (lhs.astType === Ast.AstConstant) {
+            if (lhs.token !== Token.TokenIntegerConstant && lhs.token !== Token.TokenFPConstant) {
+                platform.programFail(`expect a numeric constant or value`);
+            }
+            val1 = lhs.value;
+            if (lhs.token === Token.TokenFPConstant) {
+                hasFP = true;
+            }
+        }
+
+        if (rhs.astType === Ast.AstVariable) {
+            val2 = rhs.value.getNumericValue();
+            if (val2 === null) {
+                platform.programFail(`right side of operation is NOT a valid number`);
+            }
+            if (rhs.value.dataType.baseType === BaseType.TypeFP) {
+                hasFP = true;
+            }
+        } else if (rhs.astType === Ast.AstConstant) {
+            if (rhs.token !== Token.TokenIntegerConstant && rhs.token !== Token.TokenFPConstant) {
+                platform.programFail(`expect a numeric constant or value`);
+            }
+            val2 = rhs.value;
+            if (rhs.token === Token.TokenFPConstant) {
+                hasFP = true;
+            }
+        }
+
+        switch (opToken) {
+            case Token.TokenAsterisk: // 乘法
+                result = val1 * val2;
+                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenSlash: // 除法
+                if (val2 === 0) {
+                    platform.programFail(`division by zero`);
+                }
+                result = val1 / val2;
+                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenModulus: // 取模
+                if (val2 === 0) {
+                    platform.programFail(`division by zero`);
+                }
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary %`);
+                }
+                result = val1 % val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenPlus: // 加法
+                result = val1 + val2;
+                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenMinus: // 减法
+                result = val1 - val2;
+                baseType = hasFP ? BaseType.TypeFP : BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenShiftLeft: // 左移
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary <<`);
+                }
+                result = val1 << val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenShiftRight: // 右移
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary >>`);
+                }
+                result = val1 >> val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenLessThan: // 小于
+                result = val1 < val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenLessEqual: // 小于等于
+                result = val1 <= val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenGreaterThan: // 大于
+                result = val1 > val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenGreaterEqual: // 大于等于
+                result = val1 >= val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenEqual: // 等于
+                result = val1 === val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenNotEqual: // 不等于
+                result = val1 !== val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenAmpersand: // 按位与
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary &`);
+                }
+                result = val1 & val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenArithmeticOr: // 按位或
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary |`);
+                }
+                result = val1 | val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenArithmeticExor: // 按位异或
+                if (hasFP) {
+                    platform.programFail(`invalid operands to binary ^`);
+                }
+                result = val1 ^ val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenLogicalAnd: // 逻辑与
+                result = val1 && val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenLogicalOr: // 逻辑或
+                result = val1 || val2;
+                baseType = BaseType.TypeUnsignedLong;
+                break;
+            case Token.TokenQuestionMark:
+                // todo
+                break;
+            case Token.TokenColon:
+                // todo
+                break;
+            default:
+                assert(false, `internal:evalBinaryOperator(): Unexpected operator token ${opToken}`);
+                break;
+        }
+
+        const variable = Variable.createNumericVariable(baseType, null, result);
+        return {
+            astType: Ast.AstVariable,
+            token: null,
+            value: variable
+        };
+    } // end of evalBinaryOperator
+
+    evalAssignOperator(lhs, rhs, assignToken) {
+    }
+
+
 }
