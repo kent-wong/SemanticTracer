@@ -7,6 +7,50 @@ const platform = require('./platform');
 const Ast = require('./ast');
 const Variable = require('./variable');
 
+const prio = new Map([
+    // 第三等优先级
+    [Token.TokenAsterisk, 3],
+    [Token.TokenSlash, 3],
+    [Token.TokenModulus, 3],
+
+    // 第四等优先级
+    [Token.TokenPlus, 4],
+    [Token.TokenMinus, 4],
+
+    // 第五等优先级
+    [Token.TokenShiftLeft, 5],
+    [Token.TokenShiftRight, 5],
+
+    // 第六等优先级
+    [Token.TokenLessThan, 6],
+    [Token.TokenGreaterThan, 6],
+    [Token.TokenLessEqual, 6],
+    [Token.TokenGreaterEqual, 6],
+
+    // 第七等优先级
+    [Token.TokenEqual, 7],
+    [Token.TokenNotEqual, 7],
+
+    // 第八等优先级
+    [Token.TokenAmpersand, 8],
+
+    // 第九等优先级
+    [Token.TokenArithmeticExor, 9],
+
+    // 第十等优先级
+    [Token.TokenArithmeticOr, 10],
+
+    // 第十一等优先级
+    [Token.TokenLogicalAnd, 11],
+
+    // 第十二等优先级
+    [Token.TokenLogicalOr, 12],
+
+    // 第十三等优先级
+    [Token.TokenQuestionMark, 13],
+    [Token.TokenColon, 13]
+]);
+
 class Evaluator {
     constructor() {
         this.scopes = new Scopes();
@@ -240,7 +284,7 @@ class Evaluator {
         }
     } // end of assertValidExpression
 
-    // 将表达式列表中的元素进行计算和转换
+    // 将表达式列表中的元素进行合法性检查和转换
     expressionMap(elementList) {
         if (elementList.length === 0) {
             return null;
@@ -276,52 +320,8 @@ class Evaluator {
                 token = Token.TokenIdentifier;
                 astType = Ast.AstIdentifier;
             } else if (astElement.astType === Ast.AstOperator) {
-                const prio = new Map([
-                    // 第三等优先级
-                    [Token.TokenAsterisk, 3],
-                    [Token.TokenSlash, 3],
-                    [Token.TokenModulus, 3],
-
-                    // 第四等优先级
-                    [Token.TokenPlus, 4],
-                    [Token.TokenMinus, 4],
-
-                    // 第五等优先级
-                    [Token.TokenShiftLeft, 5],
-                    [Token.TokenShiftRight, 5],
-
-                    // 第六等优先级
-                    [Token.TokenLessThan, 6],
-                    [Token.TokenGreaterThan, 6],
-                    [Token.TokenLessEqual, 6],
-                    [Token.TokenGreaterEqual, 6],
-
-                    // 第七等优先级
-                    [Token.TokenEqual, 7],
-                    [Token.TokenNotEqual, 7],
-
-                    // 第八等优先级
-                    [Token.TokenAmpersand, 8],
-
-                    // 第九等优先级
-                    [Token.TokenArithmeticExor, 9],
-
-                    // 第十等优先级
-                    [Token.TokenArithmeticOr, 10],
-
-                    // 第十一等优先级
-                    [Token.TokenLogicalAnd, 11],
-
-                    // 第十二等优先级
-                    [Token.TokenLogicalOr, 12],
-
-                    // 第十三等优先级
-                    [Token.TokenQuestionMark, 13],
-                    [Token.TokenColon, 13]
-                ]);
-
-                token = astElement.token;
                 astType = Ast.AstOperator;
+                token = astElement.token;
                 switch (astElement.token) {
                     case Token.TokenSizeof:
                         // todo
@@ -348,17 +348,17 @@ class Evaluator {
                     case Token.TokenArithmeticOr:
                     case Token.TokenLogicalAnd:
                     case Token.TokenLogicalOr:
-                    case Token.TokenQuestionMark:
-                    case Token.TokenColon:
+                    //case Token.TokenQuestionMark:
+                    //case Token.TokenColon:
                         v = prio.get(astElement.token);
                         assert(v !== undefined, `operator ${astElement.token} has no prio`);
                         break;
                     default:
                         assert(false, `Unrecognized operator type ${astElement.token}`);
                 }
-            } else if (astElement.astType === Ast.AstConstant) {
-                token = astElement.token;
+            /*} else if (astElement.astType === Ast.AstConstant) {
                 astType = Ast.AstConstant;
+                token = astElement.token;
                 switch (astElement.token) {
                     case TokenIntegerConstant:
                     case TokenFPConstant:
@@ -370,13 +370,10 @@ class Evaluator {
                         assert(false, `Unrecognized constant type ${astElement.token}`);
                         break;
                 }
-            } else if (astElement.astType === Ast.AstExpression) {
-                // 子expression
-                token = Token.TokenIdentifier;
-                v = this.evalExpression(astElement);
-                astType = Ast.AstIdentifier;
+            */
             } else {
-                assert(false, `Unrecognized expression element type ${astElement.astType}`);
+                expressionList.push(astElement);
+                continue;
             }
 
             expressionList.push({astType: astType, token: token, value: v});
@@ -405,6 +402,16 @@ class Evaluator {
                 } else {
                     this.expressionReduceStack(stack, prio);
                     bestPrio = prio;
+
+                    // 对"||"操作符进行特殊处理，如果前半部分表达式为true则直接返回
+                    if (elem.token === Token.TokenArithmeticOr) {
+                        if (stack.length !== 1) {
+                            platform.programFail(`invalid expression`);
+                        }
+                        if (stack[0].validateToBoolean()) {
+                            return stack[0];
+                        }
+                    }
                 }
             }
 
@@ -417,9 +424,11 @@ class Evaluator {
             platform.programFail(`invalid expression`);
         }
 
+        /*
         if (stack[0].astType !== Ast.AstIdentifier) {
             platform.programFail(`invalid expression`);
         }
+        */
 
         return stack[0];
     } // end of expressionReduce
@@ -469,6 +478,7 @@ class Evaluator {
                     result = Variable.evalBinaryOperator(lhs, rhs, opToken);
                     break;
 
+                /*
                 case Token.TokenQuestionMark:
                     return stack;
                 case Token.TokenColon:
@@ -488,6 +498,7 @@ class Evaluator {
                         // todo
                     }
                     break;
+                */
                 default:
                     assert(false, `internal:expressionReduceStack():switch(${opToken}): unexpected token`);
                     break;
@@ -513,4 +524,14 @@ class Evaluator {
         return result;
     } // end of evalExpression
 
+    evalExpressionBoolean(AstExpression) {
+        const result = this.evalExpression(AstExpression);
+        const value = result.getNumericValue();
+
+        if (value === null) {
+            platform.programFail('expression can NOT be evaluated to boolean');
+        }
+
+        return (value !== 0);
+    }
 }

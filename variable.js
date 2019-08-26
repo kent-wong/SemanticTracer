@@ -235,6 +235,22 @@ class Variable {
         return new Variable(dataType, name, value);
     }
 
+    // 进行单目运算符、函数调用，子表达式的计算
+    static evalUnaryOperator(ast) {
+        switch (ast.astType) {
+            case Ast.AstPrefixOp:
+                break;
+            case Ast.AstPostfixOp:
+                break;
+            case Ast.AstFuncCall:
+                break;
+            case Ast.AstExpression:
+                break;
+            default:
+                break;
+        }
+    }
+
     static evalBinaryOperator(lhs, rhs, opToken) {
         let val1;
         let val2;
@@ -390,7 +406,8 @@ class Variable {
     } // end of evalBinaryOperator
 
 
-    static evalBinaryOperator(conditional, lhs, rhs) {
+    /*
+    static evalTernaryOperator(conditional, lhs, rhs) {
         let value;
 
         if (conditional.astType === Ast.AstIdentifier) {
@@ -412,6 +429,7 @@ class Variable {
 
         return rhs;
     }
+    */
 
 
 

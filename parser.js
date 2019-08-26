@@ -447,16 +447,88 @@ class Parser {
     } // end of retrieveIdentAst()
 
     // 解析赋值语句，包括=, +=, -=, <<=一类的赋值语句
-    parseAssignment(lhs, assignType) {
+    parseAssignment(lhs, assignToken) {
         const astAssign = {
             astType: Ast.AstAssign,
             lhs: lhs,
-            assignType: assignType,
+            assignToken: assignToken,
             rhs: this.parseExpression(Token.TokenComma, Token.TokenSemicolon)
         };
 
         return astAssign;
     }
+
+    // 三目运算符单独处理
+    parseTernaryOperator(elementList) {
+        const newList = [];
+        let elem;
+
+        while (elementList.length !== 0) {
+            elem = elementList.shift();
+            if (elem.astType === Ast.AstOperator &&
+                    elem.token === Token.TokenQuestionMark) {
+                elem = this.parseTernaryExpression(newList, elementList);
+                return [elem];
+            }
+
+            newList.push(elem);
+        }
+
+        // 没有三目运算符
+        return newList;
+    }
+
+    // 递归函数解析三目运算符并生成AST
+    parseTernaryExpression(conditional, elementList) {
+        const expr1 = [];
+        const expr2 = [];
+
+        let elem;
+        let curExpr = expr1;
+        let hasColon = false;
+        while (elementList.length !== 0) {
+            elem = elementList.shift();
+            if (elem.astType === Ast.AstOperator) {
+                if (elem.token === Token.TokenQuestionMark) {
+                    elem = this.parseTernaryExpression(curExpr, elementList);
+                    curExpr.splice(0); // 清空当前表达式列表
+                } else if (elem.token === Token.TokenColon) {
+                    if (hasColon) {
+                        elementList.unshift(elem);
+                        break;
+                    }
+                    hasColon = true;
+                    curExpr = expr2;
+                    continue;
+                }
+            }
+
+            curExpr.push(elem);
+        }
+
+        if (!hasColon) {
+            platform.programFail(`missing ':' in ternary operator`);
+        }
+
+        if (conditional.length === 0) {
+            platform.programFail(`expect expression before '?'`);
+        }
+        
+        if (expr1.length === 0) {
+            platform.programFail(`expect expression before ':'`);
+        }
+
+        if (expr2.length === 0) {
+            platform.programFail(`expect expression after ':'`);
+        }
+
+        return {
+            astType: Ast.AstTernary,
+            conditional: conditional,
+            expr1: expr1,
+            expr2: expr2
+        };
+    } // end of parseTernaryExpression
 
     parseExpression(...stopAt) {
         if (stopAt.length === 0) {
@@ -486,10 +558,10 @@ class Parser {
                 if (token >= Token.TokenAssign && token <= Token.TokenArithmeticExorAssign) {
                     this.getToken();
                     astResult = this.parseAssignment(astIdent, token);
-                    return astResult;
+                    elementList.push(astResult);
+                } else {
+                    elementList.push(astIdent);
                 }
-
-                elementList.push(astIdent);
             } else if (token >= Token.TokenQuestionMark && token <= Token.TokenCast) { // 操作符
                 const astOperator = {
                     astType: Ast.AstOperator,
@@ -622,6 +694,9 @@ class Parser {
             }
         });
         elementList = elementList.reverse().filter(v => {return v !== undefined});
+
+        // 处理三目运算符
+        elementList = this.parseTernaryOperator(elementList);
 
         // 将表达式元素打包为一个AST
         const astExpression = {
