@@ -472,16 +472,23 @@ class Evaluator {
         let result;
         let expList;
         do {
-            // 先处理三目运算符
-            while (astExpr.elementList.length === 1 &&
-                  astExpr.elementList[0].astType === Ast.AstTernary) {
-                let astTernary = astExpr.elementList[0];
-                let condition = this.evalExpressionBoolean(astTernary.conditional);
-                astExpr.elementList = condition ? astTernary.expr1.elementList : astTernary.expr2.elementList;
-            }
+            // 先处理各类赋值操作
+            if (astExpr.elementList.length === 1 &&
+                  astExpr.elementList[0].astType === Ast.AstAssign) {
+                let astAssign = astExpr.elementList[0];
+                result = this.evalAssignOperator(astAssign.lhs,astAssign.rhs, astAssign.assignToken);    
+            } else {
+                // 再处理三目运算符
+                while (astExpr.elementList.length === 1 &&
+                      astExpr.elementList[0].astType === Ast.AstTernary) {
+                    let astTernary = astExpr.elementList[0];
+                    let condition = this.evalExpressionBoolean(astTernary.conditional);
+                    astExpr.elementList = condition ? astTernary.expr1.elementList : astTernary.expr2.elementList;
+                }
 
-            expList = this.expressionMap(astExpr.elementList);
-            result = this.expressionReduce(expList);
+                expList = this.expressionMap(astExpr.elementList);
+                result = this.expressionReduce(expList);
+            }
             astExpr = astExpr.astNextExpression;
         } while (astExpr !== null);
 
@@ -693,7 +700,13 @@ class Evaluator {
         };
     } // end of evalBinaryOperator
 
-    evalAssignOperator(lhs, rhs, assignToken) {
+    // 赋值"x = y"
+    evalAssign(astIdent, astExpression) {
+    }
+
+    evalAssignOperator(astIdent, astExpression, assignToken) {
+        // lhs - astIdent
+        // rhs - astExpression
     }
 
 

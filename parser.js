@@ -451,8 +451,8 @@ class Parser {
         const astAssign = {
             astType: Ast.AstAssign,
             lhs: lhs,
-            assignToken: assignToken,
-            rhs: this.parseExpression(Token.TokenComma, Token.TokenSemicolon)
+            rhs: this.parseExpression(Token.TokenComma, Token.TokenSemicolon),
+            assignToken: assignToken
         };
 
         return astAssign;

@@ -153,14 +153,17 @@ const TokenEnum = {
 	TokenCloseParenth: 0x2c,
 
 	TokenIdentifier: 0x2d,
+
 	TokenIntegerConstant: 0x2e,
 	TokenFPConstant: 0x2f,
 	TokenStringConstant: 0x30,
 	TokenCharacterConstant: 0x31,
+
 	TokenSemicolon: 0x32,
 	TokenEllipsis: 0x33,
 	TokenLeftBrace: 0x34,
 	TokenRightBrace: 0x35,
+
 	TokenIntType: 0x36,
 	TokenCharType: 0x37,
 	TokenFloatType: 0x38,
@@ -177,6 +180,7 @@ const TokenEnum = {
 	TokenStructType: 0x43,
 	TokenUnionType: 0x44,
 	TokenUnsignedType: 0x45,
+
 	TokenTypedef: 0x46,
 	TokenContinue: 0x47,
 	TokenDo: 0x48,
