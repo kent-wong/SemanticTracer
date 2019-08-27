@@ -318,8 +318,75 @@ class Variable {
         return this.createElementVariable(indexes);
     } // end of assignToPtr
 
+    _factorial(...numbers) {
+        let result = 1;
+        for (let n of numbers) {
+            if (n === 0) {
+                return 0;
+            }
+            result *= n;
+        }
+
+        return result;
+    }
+
     handlePtrChange(indexes, n, opToken) {
+        if (n === 0) {
+            return this.createElementVariable(indexes);
+        }
+
         const refValue = this.getValue(indexes);
+        if (refValue === null) {
+            // 指针为null，不允许给指针指定非0值
+            platform.programFail(`invalid RHS numeric value for pointer type except NULL(0)`);
+        }
+
+        // 如果指针指向的目标不是数组，不允许改变指针的值
+        if (refValue.refTo.dataType.arrayIndexes.length === 0) {
+            platform.programFail(`semantic error: attempts redirecting pointer to point to unknown place`);
+        }
+
+        // 计算出数组的全部元素数目
+        const numTotalElements = this._factorial(...refValue.refTo.dataType.arrayIndexes);
+
+        // 计算出指针当前指向的元素位置
+        let accessPosition = 0;
+        const calcList = [];
+        for (let i = 0; i < refValue.indexes.length; i ++) {
+            let multi = this._factorial(refValue.refTo.dataType.arrayIndexes.slice(i+1));
+            calcList.push(multi);
+            accessPosition += refValue.indexes[i] * multi;
+        }
+
+        switch (opToken) {
+            case Token.TokenAddAssign:
+            case Token.TokenIncrement:
+                if (accessPosition + n >= numTotalElements) {
+                    platform.programFail(`semantic error:
+                                    increase pointer by ${n} will overflow the array boundary`);
+                }
+                accessPosition += n;
+                break;
+            case Token.TokenSubtractAssign:
+            case Token.TokenDecrement:
+                if (accessPosition - n < 0) {
+                    platform.programFail(`semantic error:
+                                    decrease pointer by ${n} will underflow the array boundary`);
+                }
+                accessPosition -= n;
+                break;
+            default:
+                assert(false, `internal: handlePtrChange(): unexpected operator token ${opToken}`);
+                break;
+        }
+
+        // 改变指针指向的元素位置
+        for (let i = 0; i < refValue.indexes.length; i ++) {
+            refValue.indexes[i] = accessPosition / calcList[i];
+            accessPosition %= calcList[i];
+        }
+
+        return this.createElementVariable(indexes);
     }
 
     assignConstant(indexes, n) {

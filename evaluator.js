@@ -763,6 +763,11 @@ class Evaluator {
         }
 
         const n = rhs.getValue();
+        const num = new Number(n);
+        if (!num.isInteger()) {
+            platform.programFail(`integer value expected for RHS`);
+        }
+
         switch (assignToken) {
             case Token.TokenAddAssign:
             case Token.TokenSubtractAssign:
