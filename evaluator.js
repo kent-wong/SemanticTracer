@@ -756,11 +756,19 @@ class Evaluator {
         if (assignToken === Token.TokenAssign) {
             return variable.assign(astIdent.accessIndexes, rhs);
         }
-
         // 除了"="赋值以外，其他赋值类型，如"+=", ">>="等，要求右值必须为数值类型
+        if (!rhs.isNumericType()) {
+            platform.programFail(`right hand side of "${Token.getTokenName(assignToken)}"
+                                    must be a numeric value`);
+        }
+
+        const n = rhs.getValue();
         switch (assignToken) {
             case Token.TokenAddAssign:
             case Token.TokenSubtractAssign:
+                if (variable.isPtrType()) {
+                    return variable.handlePtrChange(astIdent.accessIndexes, n, assignToken);
+                }
             case Token.TokenMultiplyAssign:
             case Token.TokenDivideAssign:
             case Token.TokenModulusAssign:
@@ -769,15 +777,17 @@ class Evaluator {
             case Token.TokenArithmeticAndAssign:
             case Token.TokenArithmeticOrAssign:
             case Token.TokenArithmeticExorAssign:
-                if (!rhs.isNumericType()) {
-                    platform.programFail(`right hand side of "${Token.getTokenName(assignToken)}" must be a numeric value`);
+                if (!variable.isNumericType()) {
+                    platform.programFail(`left hand side of "${Token.getTokenName(assignToken)}"
+                                            must be a numeric value`);
                 }
-                const n = rhs.getValue();
-                return this.setValue(astIdent.accessIndexes, n, assignToken);
+                break;
             default:
                 assert(false, `internal: evalAssignOperator(): Unexpected assignToken ${assignToken}`);
                 break;
         }
+
+        return variable.setValue(astIdent.accessIndexes, n, assignToken);
     } // end of evalAssignOperator
 
 

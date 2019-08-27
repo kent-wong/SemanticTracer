@@ -318,6 +318,10 @@ class Variable {
         return this.createElementVariable(indexes);
     } // end of assignToPtr
 
+    handlePtrChange(indexes, n, opToken) {
+        const refValue = this.getValue(indexes);
+    }
+
     assignConstant(indexes, n) {
         if (!this.isNumericType()) {
             platform.programFail(`Incompatible types`);
