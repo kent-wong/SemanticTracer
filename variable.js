@@ -186,9 +186,21 @@ class Variable {
         return theVariable;
     }
 
+    isPtrType() {
+        return this.dataType.numPtrs !== 0;
+    }
+
+    isArrayType() {
+        return this.dataType.arrayIndexes.length !== 0;
+    }
+
     isNumericType() {
         if (this.dataType.customType !== null) {
             // todo: 如果是typedef int sometype; 那么应该返回true
+            return false;
+        }
+
+        if (this.dataType.numPtrs !== 0) {
             return false;
         }
 
@@ -218,6 +230,126 @@ class Variable {
         }
 
         return this.values;
+    }
+
+    assignToPtr(indexes, rhs) {
+        if (rhs === null) {
+            this.setValue(indexes, null);
+        }
+
+        let targetPtrs = rhs.dataType.numPtrs;
+        if (rhs.isArrayType()) {
+            targetPtrs ++;
+        }
+
+        if (this.dataType.baseType !== rhs.dataType.baseType ||
+              this.dataType.numPtrs !== targetPtrs) {
+            platform.programFail(`incompatible pointer type`);
+        }
+
+        // for array type variable, a pointer referrences its first element
+        if (rhs.isArrayType()) {
+            const accessIndexes = [];
+            accessIndexes.length = rhs.dataType.arrayIndexes;
+            accessIndexes.fill(0);
+
+            this.setValue({refTo: rhs, indexes: accessIndexes});
+        } else {
+            let value = rhs.getValue();
+            this.setValue(indexes, value);
+        }
+
+        return this.createElementVariable(indexes);
+    } // end of assignToPtr
+
+    assignConstant(indexes, n) {
+        if (!this.isNumericType()) {
+            platform.programFail(`Incompatible types`);
+        }
+
+        let result = n;
+        switch(this.dataType.baseType) {
+            case BaseType.TypeInt:
+                if (n < 0) {
+                    result = 0x80000000 - (n & 0x7FFFFFFF);
+                    result *= -1;
+                } else {
+                    result = n & 0x7FFFFFFF;
+                }
+                break;
+            case BaseType.TypeShort:
+                if (n < 0) {
+                    result = 0x8000- (n & 0x7FFF);
+                    result *= -1;
+                } else {
+                    result = n & 0x7FFF;
+                }
+                break;
+            case BaseType.TypeChar:
+                if (n < 0) {
+                    result = 0x80- (n & 0x7F);
+                    result *= -1;
+                } else {
+                    result = n & 0x7F;
+                }
+                break;
+            case BaseType.TypeLong:
+                if (n < 0) {
+                    result = 0x80000000 - (n & 0x7FFFFFFF);
+                    result *= -1;
+                } else {
+                    result = n & 0x7FFFFFFF;
+                }
+                break;
+            case BaseType.TypeUnsignedInt:
+                result = n & 0xFFFFFFFF;
+                break;
+            case BaseType.TypeUnsignedShort:
+                result = n & 0xFFFF;
+                break;
+            case BaseType.TypeUnsignedChar:
+                result = n & 0xFF;
+                break;
+            case BaseType.TypeUnsignedLong:
+                result = n & 0xFFFFFFFF;
+                break;
+            case BaseType.TypeFP:
+                break;
+            default:
+                assert(false, `internal error: assignConstant(): 
+                               wrong baesType: ${this.dataType.baseType}`);
+                break;
+        }
+
+        this.setValue(indexes, result);
+        return this.createElementVariable(indexes);
+    } // end of assignConstant
+
+    assignOperator(indexes, rhs) {
+        if (rhs === null) {
+            return this.assignToPtr(indexes, rhs);
+        } else if (rhs.isNumericType()) {
+            const n = rhs.getValue(indexes);
+            return this.assignConstant(indexes, n);
+        }
+
+        // rhs is an array
+        if (rhs.isArrayType()) {
+            if (this.isPtrType()) {
+                return this.assignToPtr(indexes, rhs);
+            }
+
+            platform.programFail(`Can Not assign an array to ${this.getTypeName()}`);
+        }
+
+        if (this.isPtrType()) {
+            return this.assignToPtr(indexes, rhs);
+        } else if (rhs.isPtrType()) {
+            platform.programFail(`Can Not assign a pointer to ${this.getTypeName()}`);
+        }
+
+        // todo
+        assert(false, `assignVariable(${indexes})`);
     }
 
     static createNumericVariable(baseType, name, value) {

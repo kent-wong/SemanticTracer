@@ -83,7 +83,7 @@ class Evaluator {
     // 处理自增/自减运算
     evalSelfOp(astIdent, isPostfix, isIncr) {
         // 通过AST获取变量，此变量必须存在于当前有效的scopes中
-        const variable = this.evalGetVariable(astIdent.ident);
+        const variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
@@ -140,7 +140,7 @@ class Evaluator {
         return this.evalSelfOp(astIdent, false, false);
     }
 
-    evalGetVariable(name) {
+    getVariable(name) {
         let v = this.scopes.findIdent(name);
         if (v === undefined) {
             v = null;
@@ -153,7 +153,7 @@ class Evaluator {
         const astIdent = astTakeAddress.astIdent;
 
         // 通过AST获取变量，此变量必须存在于当前有效的scopes中
-        const variable = this.evalGetVariable(astIdent.ident);
+        const variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
@@ -168,7 +168,7 @@ class Evaluator {
 
     evalTakeValue(astTakeValue) {
         const astIdent = astTakeValue.astIdent;
-        const variable = this.evalGetVariable(astIdent.ident);
+        const variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
@@ -188,7 +188,7 @@ class Evaluator {
 
     evalTakeUMinus(astMinus) {
         const astIdent = astMinus.astIdent;
-        const variable = this.evalGetVariable(astIdent.ident);
+        const variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
@@ -199,7 +199,7 @@ class Evaluator {
 
     evalTakeNot(astNot) {
         const astIdent = astNot.astIdent;
-        const variable = this.evalGetVariable(astIdent.ident);
+        const variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
@@ -210,7 +210,7 @@ class Evaluator {
 
     evalTakeExor(astExor) {
         const astIdent = astExor.astIdent;
-        const variable = this.evalGetVariable(astIdent.ident);
+        const variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
@@ -220,7 +220,7 @@ class Evaluator {
     }
 
     evalVariableFromAstIdent(astIdent) {
-        const variable = this.evalGetVariable(astIdent.ident);
+        const variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
@@ -702,6 +702,29 @@ class Evaluator {
 
     // 赋值"x = y"
     evalAssign(astIdent, astExpression) {
+        let value;
+        const variable = this.getVariable(astIdent.ident);
+        if (variable === null) {
+            platform.programFail(`${astIdent.ident} undeclared`);
+        }
+        // 变量必须是左值
+        if (variable.name === null) {
+            platform.programFail(`lvalue required`);
+        }
+
+        const rhs = this.evalExpression(astExpression);
+        switch (rhs.astType) {
+            case Ast.AstVariable:
+                variable.assignVariable(astIdent.accessIndexes, rhs.value);
+                break;
+            case Ast.AstConstant:
+                variable.assignConstant(astIdent.accessIndexes, rhs.value);
+                break;
+            default:
+                break;
+        }
+
+        //value = variable.getValue(astIdent.accessIndexes);
     }
 
     evalAssignOperator(astIdent, astExpression, assignToken) {
