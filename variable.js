@@ -51,34 +51,65 @@ class Variable {
         return v;
     }
 
+    // 赋值
+    // 注意：此函数不对赋值操作合法性进行检查，调用者需要保证操作的合法性
     setValue(indexes, value, opToken) {
+        if (opToken === undefined) {
+            opToken = Token.TokenAssign;
+        }
+
         this.checkAccessIndexes(indexes);
 
         // 变量不是数组，直接对其值进行操作
         if (this.dataType.arrayIndexes.length === 0) {
-            if (opToken === undefined) {
-                this.value = value;
-            } else {
-                switch (opToken) {
-                    case Token.TokenMinus:
-                        this.value = -this.value;
-                        break;
-                    case Token.TokenUnaryNot:
-                        this.value = !this.value;
-                        break;
-                    case Token.TokenUnaryExor:
-                        this.value = ~this.value;
-                        break;
-                    case Token.TokenIncrement:
-                        this.value += value;
-                        break;
-                    case Token.TokenDecrement:
-                        this.value -= value;
-                        break;
-                    default:
-                        assert(false, `Unrecognized operator token ${opToken}`);
-                        break;
-                }
+            switch (opToken) {
+                case Token.TokenAssign:
+                    this.value = value;
+                    break;
+                case Token.TokenMinus:
+                    this.value = -this.value;
+                    break;
+                case Token.TokenUnaryNot:
+                    this.value = !this.value;
+                    break;
+                case Token.TokenUnaryExor:
+                    this.value = ~this.value;
+                    break;
+                case Token.TokenIncrement:
+                case Token.TokenAddAssign:
+                    this.value += value;
+                    break;
+                case Token.TokenDecrement:
+                case Token.TokenSubtractAssign:
+                    this.value -= value;
+                    break;
+                case Token.TokenMultiplyAssign:
+                    this.value *= value;
+                    break;
+                case Token.TokenDivideAssign:
+                    this.value /= value;
+                    break;
+                case Token.TokenModulusAssign:
+                    this.value %= value;
+                    break;
+                case Token.TokenShiftLeftAssign:
+                    this.value <<= value;
+                    break;
+                case Token.TokenShiftRightAssign:
+                    this.value >>= value;
+                    break;
+                case Token.TokenArithmeticAndAssign:
+                    this.value &= value;
+                    break;
+                case Token.TokenArithmeticOrAssign:
+                    this.value |= value;
+                    break;
+                case Token.TokenArithmeticExorAssign:
+                    this.value ^= value;
+                    break;
+                default:
+                    assert(false, `Unrecognized operator token ${opToken}`);
+                    break;
             }
             return;
         }
@@ -95,29 +126,54 @@ class Variable {
             platform.programFail(`array index ${indexes[-1]} out of bound`);
         }
 
-        if (opToken === undefined) {
-            v[indexes[-1]] = value;
-        } else {
-            switch (opToken) {
-                case Token.TokenMinus:
-                    v[indexes[-1]] = -this.value;
-                    break;
-                case Token.TokenUnaryNot:
-                    v[indexes[-1]] = !this.value;
-                    break;
-                case Token.TokenUnaryExor:
-                    v[indexes[-1]] = ~this.value;
-                    break;
-                case Token.TokenIncrement:
-                    v[indexes[-1]] += value;
-                    break;
-                case Token.TokenDecrement:
-                    v[indexes[-1]] -= value;
-                    break;
-                default:
-                    assert(false, `Unrecognized operator token ${opToken}`);
-                    break;
-            }
+        switch (opToken) {
+            case Token.TokenAssign:
+                v[indexes[-1]] = value;
+                break;
+            case Token.TokenMinus:
+                v[indexes[-1]] = -this.value;
+                break;
+            case Token.TokenUnaryNot:
+                v[indexes[-1]] = !this.value;
+                break;
+            case Token.TokenUnaryExor:
+                v[indexes[-1]] = ~this.value;
+                break;
+            case Token.TokenIncrement:
+            case Token.TokenAddAssign:
+                v[indexes[-1]] += value;
+                break;
+            case Token.TokenDecrement:
+            case Token.TokenSubtractAssign:
+                v[indexes[-1]] -= value;
+                break;
+            case Token.TokenMultiplyAssign:
+                v[indexes[-1]] *= value;
+                break;
+            case Token.TokenDivideAssign:
+                v[indexes[-1]] /= value;
+                break;
+            case Token.TokenModulusAssign:
+                v[indexes[-1]] %= value;
+                break;
+            case Token.TokenShiftLeftAssign:
+                v[indexes[-1]] <<= value;
+                break;
+            case Token.TokenShiftRightAssign:
+                v[indexes[-1]] >>= value;
+                break;
+            case Token.TokenArithmeticAndAssign:
+                v[indexes[-1]] &= value;
+                break;
+            case Token.TokenArithmeticOrAssign:
+                v[indexes[-1]] |= value;
+                break;
+            case Token.TokenArithmeticExorAssign:
+                v[indexes[-1]] ^= value;
+                break;
+            default:
+                assert(false, `Unrecognized operator token ${opToken}`);
+                break;
         }
 
         return;
@@ -200,7 +256,7 @@ class Variable {
             return false;
         }
 
-        if (this.dataType.numPtrs !== 0) {
+        if (this.isArrayType() || this.isPtrType()) {
             return false;
         }
 
@@ -325,7 +381,7 @@ class Variable {
         return this.createElementVariable(indexes);
     } // end of assignConstant
 
-    assignOperator(indexes, rhs) {
+    assign(indexes, rhs) {
         if (rhs === null) {
             return this.assignToPtr(indexes, rhs);
         } else if (rhs.isNumericType()) {

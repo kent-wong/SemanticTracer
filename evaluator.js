@@ -466,11 +466,12 @@ class Evaluator {
         return stack;
     } // end of expressionReduceStack
 
-    // 对表达式进行求值
+    // 对表达式进行求值，返回variable
     evalExpression(AstExpression) {
         let astExpr = AstExpression;
         let result;
         let expList;
+
         do {
             // 先处理各类赋值操作
             if (astExpr.elementList.length === 1 &&
@@ -483,7 +484,8 @@ class Evaluator {
                       astExpr.elementList[0].astType === Ast.AstTernary) {
                     let astTernary = astExpr.elementList[0];
                     let condition = this.evalExpressionBoolean(astTernary.conditional);
-                    astExpr.elementList = condition ? astTernary.expr1.elementList : astTernary.expr2.elementList;
+                    astExpr.elementList = condition ? astTernary.expr1.elementList :
+                                                        astTernary.expr2.elementList;
                 }
 
                 expList = this.expressionMap(astExpr.elementList);
@@ -491,6 +493,14 @@ class Evaluator {
             }
             astExpr = astExpr.astNextExpression;
         } while (astExpr !== null);
+
+        if (result.astType === Ast.AstConstant) {
+            result = Variable.createNumericVariable(BaseType.TypeInt, null, result.value);
+        } else if (result.astType === Ast.AstVariable) {
+            result = result.value;
+        } else {
+            assert(false, `internal: evalExpression(): Unexpected astType ${result.astType}`);
+        }
 
         return result;
     } // end of evalExpression
@@ -715,22 +725,60 @@ class Evaluator {
         const rhs = this.evalExpression(astExpression);
         switch (rhs.astType) {
             case Ast.AstVariable:
-                variable.assignVariable(astIdent.accessIndexes, rhs.value);
-                break;
             case Ast.AstConstant:
-                variable.assignConstant(astIdent.accessIndexes, rhs.value);
+                return variable.assignConstant(astIdent.accessIndexes, rhs.value);
                 break;
             default:
+                assert(false, `internal: evalAssign(): Unexpected astType ${rhs.astType}`);
                 break;
         }
-
-        //value = variable.getValue(astIdent.accessIndexes);
-    }
+    } // end of evalAssign
 
     evalAssignOperator(astIdent, astExpression, assignToken) {
-        // lhs - astIdent
-        // rhs - astExpression
-    }
+        let rhs;
+        let ret;
+
+        const variable = this.getVariable(astIdent.ident);
+        if (variable === null) {
+            platform.programFail(`${astIdent.ident} undeclared`);
+        }
+        // 变量必须是左值
+        if (variable.name === null) {
+            platform.programFail(`lvalue required`);
+        }
+
+        rhs = this.evalExpression(astExpression);
+
+        if (assignToken === undefined) {
+            assignToken = Token.TokenAssign;
+        }
+
+        if (assignToken === Token.TokenAssign) {
+            return variable.assign(astIdent.accessIndexes, rhs);
+        }
+
+        // 除了"="赋值以外，其他赋值类型，如"+=", ">>="等，要求右值必须为数值类型
+        switch (assignToken) {
+            case Token.TokenAddAssign:
+            case Token.TokenSubtractAssign:
+            case Token.TokenMultiplyAssign:
+            case Token.TokenDivideAssign:
+            case Token.TokenModulusAssign:
+            case Token.TokenShiftLeftAssign:
+            case Token.TokenShiftRightAssign:
+            case Token.TokenArithmeticAndAssign:
+            case Token.TokenArithmeticOrAssign:
+            case Token.TokenArithmeticExorAssign:
+                if (!rhs.isNumericType()) {
+                    platform.programFail(`right hand side of "${Token.getTokenName(assignToken)}" must be a numeric value`);
+                }
+                const n = rhs.getValue();
+                return this.setValue(astIdent.accessIndexes, n, assignToken);
+            default:
+                assert(false, `internal: evalAssignOperator(): Unexpected assignToken ${assignToken}`);
+                break;
+        }
+    } // end of evalAssignOperator
 
 
 }
