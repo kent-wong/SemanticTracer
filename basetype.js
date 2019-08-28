@@ -50,4 +50,3 @@ const BaseTypeEnum = {
 };
 
 module.exports = BaseTypeEnum;
-console.log(BaseTypeEnum.getTypeName(BaseTypeEnum.TypeArray));

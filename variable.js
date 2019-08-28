@@ -1,6 +1,7 @@
 const Token = require('./interpreter');
 const BaseType = require('./basetype');
 const platform = require('./platform');
+const utils = require('./utils');
 
 class Variable {
     constructor(dataType, name, values) {
@@ -270,6 +271,7 @@ class Variable {
         return false; // todo
     }
 
+    // 判断此变量的元素是否为数值类型
     isNumericElement() {
         if (this.isPtrType()) {
             return false;
@@ -303,28 +305,31 @@ class Variable {
         return this.values;
     }
 
-    initNullValue() {
-        let value = null;
-        if (this.isNumericType()) {
-            value = 0;
-        }
-
-        let values = value;
-        if (this.arrayIndexes.length !== 0) {
-            values = [];
-            values.length = this.totalElements();
-            values.fill(value);
-        }
-
+    initArrayValue(initValues) {
         return;
     }
 
-    initValue(value) {
-        if (value === null) {
-            return this.initNullValue();
-        }
+    initSingleValue(value) {
+        return this.assign(value);
 
-        this.assign(value);
+        /*
+        if (value.isNumericType()) {
+            if (this.isNumericType()) {
+                const n = value.getValue();
+                this.value = Variable.convertNumericValue(this.dataType.baseType, n);
+            } else if (this.isPtrType()) {
+                if (n !== 0) {
+                    platform.programFail(`Semantic error: it is *NOT* safe to assign a non-zero number to a pointer`);
+                }
+                this.value = null;
+            } else {
+                platform.programFail(`incompatible type`);
+            }
+        }
+        */
+    }
+
+    initDefaultValue() {
     }
 
     assignToPtr(indexes, rhs) {
@@ -361,24 +366,12 @@ class Variable {
         return this.createElementVariable(indexes);
     } // end of assignToPtr
 
-    _factorial(...numbers) {
-        let result = 1;
-        for (let n of numbers) {
-            if (n === 0) {
-                return 0;
-            }
-            result *= n;
-        }
-
-        return result;
-    }
-
     totalElements() {
         if (this.dataType.arrayIndexes.length === 0) {
             return 1;
         }
 
-        return this._factorial(...this.dataType.arrayIndexes);
+        return utils.factorial(...this.dataType.arrayIndexes);
     }
 
     positionFromIndex(accessIndexes) {
@@ -460,7 +453,7 @@ class Variable {
         let result = Variable.convertNumericValue(this.dataType.baseType, n);
         this.setValue(indexes, result);
         return this.createElementVariable(indexes);
-    } // end of assignConstant
+    } // end of assignNumeric
 
     assign(indexes, rhs) {
         if (this.isPtrType()) {
@@ -476,7 +469,7 @@ class Variable {
             }
 
             if (rhs.isNumericType()) {
-                return this.assignConstant(indexes, rhs);
+                return this.assignNumeric(indexes, rhs);
             }
 
         }
@@ -484,9 +477,6 @@ class Variable {
         // todo
         assert(false, `assign(${indexes})`);
     } // end of assign
-
-    initValue(value) {
-    }
 
     createDataType(baseType, numPtrs, customType, arrayIndexes) {
         if (numPtrs === undefined) {
@@ -512,25 +502,11 @@ class Variable {
         return new Variable(dataType, name, value);
     }
 
-    static _isEqualArray(arr1, arr2) {
-        if (arr1.length !== arr2.length) {
-            return false;
-        }
-
-        for (let i = 0; i < arr1.length; i ++) {
-            if (arr1[i] !== arr2[i]) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     static isSameType(type1, type2) {
         return type1.baseType === type2.baseType &&
                  type1.numPtrs === type2.numPtrs &&
                  type1.customType === type2.customType &&
-                 Variable._isEqualArray(type1.arrayIndexes, type2.arrayIndexes);
+                 utils.isEqualArray(type1.arrayIndexes, type2.arrayIndexes);
     }
 
 

@@ -77,18 +77,14 @@ class Evaluator {
         // 创建变量
         const variable = new Variable(dataType, astDecl.ident, null);
 
-        let varRHS = null;
         if (astDecl.rhs !== null) {
-            varRHS = this.evalExpression(astDecl.rhs);
-            /*
-            if (!this.checkCompatibleTypeValue(dataType, varRHS)) {
-                platform.programFail(`incompatible value`);
-            }
-            */
+            let varRHS = this.evalExpression(astDecl.rhs);
+            // 初始化变量
+            variable.initValue(varRHS);
+        } else {
+            variable.initDefaultValue();
         }
 
-        // 初始化变量
-        variable.initValue(varRHS);
 
         // 将变量加入到当前scopes
         this.scopes.addIdent(astDecl.ident, variable);
