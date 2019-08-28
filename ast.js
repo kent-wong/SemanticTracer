@@ -37,6 +37,7 @@ const AstEnum = {
     AstContinue: 33,
     AstTernary: 34,
     AstVariable: 35,
+    AstArrayInitializer: 36,
 
     createComposite: function(...astList) {
         return {

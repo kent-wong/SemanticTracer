@@ -335,6 +335,7 @@ class Parser {
     parseDeclaration(...stopAt) {
         const astList = [];
         let token, value;
+        let rhs;
         const astModelType = this.parseType();
         if (astModelType === null) {
             platform.programFail(`unrecognized type`);
@@ -383,7 +384,20 @@ class Parser {
 
             // 处理赋值
             if (this.lexer.forwardIfMatch(Token.TokenAssign)) {
-                let rhs = this.parseExpression(Token.TokenComma, Token.TokenSemicolon);
+                if (this.lexer.forwardIfMatch(Token.TokenLeftBrace)) {
+                    let initValues = this.parseArrayInitializer();
+                    if (astDecl.arrayIndexes.length === 0) {
+                        platform.programFail(`can NOT apply array initializer to scalar variable`);
+                    }
+
+                    rhs = {
+                        astType: Ast.AstArrayInitializer,
+                        initValues: initValues
+                    };
+                } else {
+                    rhs = this.parseExpression(Token.TokenComma, Token.TokenSemicolon);
+                }
+
                 astDecl.rhs = rhs;
             }
 
@@ -402,6 +416,38 @@ class Parser {
 
         return Ast.createComposite(...astList);
     } // end of parseDeclaration(...stopAt)
+
+    // 解析数组初始化列表
+    parseArrayInitializer() {
+        let elem;
+        let token;
+        let initValues = [];
+
+        do {
+            token = this.peekToken();
+            if (token === Token.TokenRightBrace) {
+                platform.programFail(`empty initializer list`);
+            }
+
+            if (this.lexer.forwardIfMatch(Token.TokenLeftBrace)) {
+                // 嵌套的初始化列表
+                elem = this.parseArrayInitializer();
+
+                token = this.peekToken();
+                if (token !== Token.TokenRightBrace && token !== Token.TokenComma) {
+                    platform.programFail(`unexpected token ${token} after '}'`);
+                }
+            } else {
+                elem = this.parseExpression(Token.TokenComma, Token.TokenRightBrace);
+            }
+
+            initValues.push(elem);
+        } while (this.lexer.forwardIfMatch(Token.TokenComma));
+
+        this.getToken();
+
+        return initValues;
+    }
 
     retrieveIdentAst() {
         let token = Token.TokenNone;
