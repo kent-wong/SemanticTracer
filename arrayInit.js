@@ -18,42 +18,35 @@ class ArrayInit {
 
     expand(start, indexes, initValues) {
         let pos = 0;
-        const expansionPoint = [];
-        const range = utils.factorial(...indexes);
-
-        // 计算扩展点
-        let reversed = indexes.slice().reverse();
-        reversed.pop();
-        let result = 1;
-        for (let idx of reversed) {
-            result *= idx;
-            expansionPoint.unshift(result);
-        }
+        let elem;
+        let i;
 
         if (initValues.length === 0) {
             return ;
         }
 
-        let elem;
-        let i;
+        // 计算扩展点
+        const expansionPoints = utils.expansionPoints(indexes);
+
+        const range = utils.factorial(...indexes);
         while (pos < range) {
             elem = initValues.shift();
             if (Array.isArray(elem)) {
                 // 查看是否处于扩展点上
-                for (i = 0; i < expansionPoint.length; i ++) {
-                    if (pos % expansionPoint[i] === 0) {
+                for (i = 0; i < expansionPoints.length; i ++) {
+                    if (pos % expansionPoints[i] === 0) {
                         break;
                     }
                 }
 
-                if (i < expansionPoint.length) {
+                if (i < expansionPoints.length) {
                     // 在扩展点上则进行递归扩展
                     let subIndexes = indexes.slice(i+1);
                     this.expand(start + pos, subIndexes, elem);
                     pos += utils.factorial(...subIndexes);
                 } else {
                     // 不在扩展点则取其第一个元素
-                    elem = this.firstElement(elem);
+                    elem = ArrayInit.firstElement(elem);
                     this.values[start+pos] = elem;
                     pos ++
                 }
@@ -69,7 +62,7 @@ class ArrayInit {
         return ;
     }
     
-    firstElement(array) {
+    static firstElement(array) {
         let a = array;
         while (Array.isArray(a)) {
             a = a[0];
@@ -82,4 +75,5 @@ class ArrayInit {
 const a = new ArrayInit([2, 3, 4], [[[1, 2], 10, 20], 3, 4, 5, 6, 7, 8, 9]);
 console.log(a.doInit());
 */
+
 module.exports = ArrayInit;

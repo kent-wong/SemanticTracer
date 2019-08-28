@@ -6,6 +6,7 @@ const Scopes = require('./scopes');
 const platform = require('./platform');
 const Ast = require('./ast');
 const Variable = require('./variable');
+const ArrayInit = require('./arrayInit');
 
 const prio = new Map([
     // 第三等优先级
@@ -78,17 +79,28 @@ class Evaluator {
         const variable = new Variable(dataType, astDecl.ident, null);
 
         if (astDecl.rhs !== null) {
-            let varRHS = this.evalExpression(astDecl.rhs);
-            // 初始化变量
-            variable.initValue(varRHS);
+            if (astDecl.rhs.astType === Ast.AstArrayInitializer) {
+                assert(astDecl.arrayIndexes.length !== 0,
+                                    `internal: evalDeclaration(): NOT an array`);
+
+                // 将初始化列表展开，并且对元素进行表达式求值
+                let initializer = new ArrayInit(astDecl.arrayIndexes, astDecl.rhs.initValues);
+                let initValues = initializer.doInit();
+                initValues.map(this.evalExpression);
+
+                // 对数组进行初始化
+                variable.initArrayValue(initValues);
+            } else {
+                let varRHS = this.evalExpression(astDecl.rhs);
+                variable.initScalarValue(varRHS);
+            }
         } else {
             variable.initDefaultValue();
         }
 
-
         // 将变量加入到当前scopes
         this.scopes.addIdent(astDecl.ident, variable);
-    }
+    } // end of evalDeclaration
 
     // 处理自增/自减运算
     evalSelfOp(astIdent, isPostfix, isIncr) {

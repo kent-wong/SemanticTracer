@@ -24,7 +24,22 @@ function factorial(...numbers) {
     return result;
 }
 
+function expansionPoints(indexes) {
+    const expansion = [];
+    let reversed = indexes.slice().reverse();
+    reversed.pop();
+
+    let result = 1;
+    for (let idx of reversed) {
+        result *= idx;
+        expansion.unshift(result);
+    }
+
+    return expansion;
+}
+
 module.exports = {
     isEqualArray,
-    factorial
+    factorial,
+    expansionPoints
 };

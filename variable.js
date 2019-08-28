@@ -213,6 +213,18 @@ class Variable {
         return theVariable;
     }
 
+    createDefaultValueVariable() {
+        const theType = {
+            baseType: this.dataType.baseType,
+            numPtrs: this.dataType.numPtrs,
+            arrayIndexes: [],
+            customType: this.dataType.customType
+        };
+
+        const theVariable = new Variable(theType, null, 0);
+        return theVariable;
+    }
+
     // 创建一个指针variable，以指定的元素为其引用
     createElementRefVariable(indexes) {
         if (indexes === undefined) {
@@ -306,30 +318,27 @@ class Variable {
     }
 
     initArrayValue(initValues) {
+        for (let i = 0; i < initValues.length; i ++) {
+            if (initValues[i] === null) {
+                initValues[i] = this.createDefaultValueVariable();
+            }
+
+            //this.values[i] = this.checkAndRetrieveAssignValue(initValues[i]);
+            const idx = this.indexFromPosition(i);
+            this.assign(idx, initValues[i]);
+        }
         return;
     }
 
-    initSingleValue(value) {
-        return this.assign(value);
-
-        /*
-        if (value.isNumericType()) {
-            if (this.isNumericType()) {
-                const n = value.getValue();
-                this.value = Variable.convertNumericValue(this.dataType.baseType, n);
-            } else if (this.isPtrType()) {
-                if (n !== 0) {
-                    platform.programFail(`Semantic error: it is *NOT* safe to assign a non-zero number to a pointer`);
-                }
-                this.value = null;
-            } else {
-                platform.programFail(`incompatible type`);
-            }
-        }
-        */
+    initScalarValue(value) {
+        return this.assign([], value);
     }
 
     initDefaultValue() {
+        const values = [];
+        values.length = utils.factorial(...this.dataType.arrayIndexes);
+        values.fill(0);
+        this.values = values;
     }
 
     assignToPtr(indexes, rhs) {
@@ -377,12 +386,27 @@ class Variable {
     positionFromIndex(accessIndexes) {
         let position = 0;
         let multi;
+        const expansionPoints = utils.expansionPoints(this.dataType.arrayIndexes); 
+        expansionPoints.push(1);
+
         for (let i = 0; i < accessIndexes.length; i ++) {
-            multi = this._factorial(this.dataType.arrayIndexes.slice(i+1));
-            position += accessIndexes[i] * multi;
+            position += accessIndexes[i] * expansionPoints[i];
         }
 
         return position;
+    }
+
+    indexFromPosition(pos) {
+        const indexes = [];
+        const expansionPoints = utils.expansionPoints(this.dataType.arrayIndexes); 
+
+        for (let e of expansionPoints) {
+            indexes.push(pos/e);
+            pos = pos % e;
+        }
+        indexes.push(pos);
+
+        return indexes;
     }
 
     handlePtrChange(indexes, n, opToken) {
