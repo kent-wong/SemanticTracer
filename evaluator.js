@@ -62,6 +62,11 @@ class Evaluator {
         assert(astDecl.ident !== null,
                     `internal error: evalDeclaration(): param has null ident`);
 
+        // 检查是否有重名的变量存在
+        if (this.scopes.findIdent(astDecl.ident) !== null) {
+            platform.programFail(`redeclaration of ${astDecl.ident}`);
+        }
+
         const dataType = this.createDataType(astDecl.dataType.astBaseType,
                                                 astDecl.dataType.numPtrs,
                                                 astDecl.dataType.ident);
@@ -69,15 +74,24 @@ class Evaluator {
             dataType.arrayIndexes.push(this.evalExpressionInt(idx));
         }
 
-        let evalRHS;
+        // 创建变量
+        const variable = new Variable(dataType, astDecl.ident, null);
+
+        let varRHS = null;
         if (astDecl.rhs !== null) {
-            evalRHS = this.evalExpression(astDecl.rhs);
-            if (!this.checkCompatibleTypeValue(dataType, evalRHS)) {
+            varRHS = this.evalExpression(astDecl.rhs);
+            /*
+            if (!this.checkCompatibleTypeValue(dataType, varRHS)) {
                 platform.programFail(`incompatible value`);
             }
+            */
         }
 
-        return new Variable(dataType, astDecl.ident, evalRHS);
+        // 初始化变量
+        variable.initValue(varRHS);
+
+        // 将变量加入到当前scopes
+        this.scopes.addIdent(astDecl.ident, variable);
     }
 
     // 处理自增/自减运算
@@ -505,6 +519,16 @@ class Evaluator {
         return result;
     } // end of evalExpression
 
+    evalExpressionInt(AstExpression) {
+        const result = this.evalExpression(AstExpression);
+        const value = result.getNumericValue();
+
+        if (value === null) {
+            platform.programFail('not a numeric expression');
+        }
+
+        return value;
+    }
     evalExpressionBoolean(AstExpression) {
         const result = this.evalExpression(AstExpression);
         const value = result.getNumericValue();
@@ -710,6 +734,7 @@ class Evaluator {
         };
     } // end of evalBinaryOperator
 
+    /*
     // 赋值"x = y"
     evalAssign(astIdent, astExpression) {
         let value;
@@ -733,6 +758,7 @@ class Evaluator {
                 break;
         }
     } // end of evalAssign
+    */
 
     evalAssignOperator(astIdent, astExpression, assignToken) {
         let rhs;

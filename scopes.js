@@ -7,7 +7,11 @@ class Scope {
     }
 
     getIdent(name) {
-        return this.idents.get(name);
+        const result = this.idents.get(name);
+        if (result === undefined) {
+            result = null;
+        }
+        return result;
     }
 
     setIdent(name, value) {
@@ -15,7 +19,11 @@ class Scope {
     }
 
     getType(name) {
-        return this.types.get(name);
+        const result = this.types.get(name);
+        if (result === undefined) {
+            result = null;
+        }
+        return result;
     }
 
     setType(name, value) {
@@ -30,7 +38,8 @@ class Scopes {
         this.current = this.global;
     }
 
-    pushScope(scope) {
+    pushScope(name) {
+        const scope = new Scope(name);
         this.current = scope;
         // 最近的scope插入到数组的最前面，便于后面进行遍历
         return this.locals.unshift(scope);
@@ -54,7 +63,7 @@ class Scopes {
             let result = null;
             for (let scope of this.locals) {
                 result = scope.getIdent(ident);
-                if (result !== undefined) {
+                if (result !== null) {
                     return result;
                 }
             }
@@ -64,7 +73,7 @@ class Scopes {
     }
 
     findGlobalIdent(ident) {
-        this.findIdent(ident, true);
+        return this.findIdent(ident, true);
     }
 
     addIdent(ident, value) {

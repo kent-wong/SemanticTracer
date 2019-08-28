@@ -4,6 +4,10 @@ const platform = require('./platform');
 
 class Variable {
     constructor(dataType, name, values) {
+        if (values === undefined) {
+            values = null;
+        }
+
         this.dataType = dataType
         this.name = name;
         this.values = values;
@@ -42,12 +46,12 @@ class Variable {
         }
 
         let v = this.values;
-        for (let i = 0; i < indexes.length; i ++) {
-            if (indexes[i] >= this.dataType.arrayIndexes[i]) {
-                platform.programFail(`array index ${indexes[i]} out of bound`);
-            }
-            v = v[indexes[i]];
+        if (this.isArrayType()) {
+            this.checkAccessIndexes(indexes);
+            const position = this.positionFromIndex(indexes);
+            v = this.values[position];
         }
+
         return v;
     }
 
@@ -61,51 +65,51 @@ class Variable {
         this.checkAccessIndexes(indexes);
 
         // 变量不是数组，直接对其值进行操作
-        if (this.dataType.arrayIndexes.length === 0) {
+        if (!this.isArrayType()) {
             switch (opToken) {
                 case Token.TokenAssign:
-                    this.value = value;
+                    this.values = value;
                     break;
                 case Token.TokenMinus:
-                    this.value = -this.value;
+                    this.values = -this.value;
                     break;
                 case Token.TokenUnaryNot:
-                    this.value = !this.value;
+                    this.values = !this.value;
                     break;
                 case Token.TokenUnaryExor:
-                    this.value = ~this.value;
+                    this.values = ~this.value;
                     break;
                 case Token.TokenIncrement:
                 case Token.TokenAddAssign:
-                    this.value += value;
+                    this.values += value;
                     break;
                 case Token.TokenDecrement:
                 case Token.TokenSubtractAssign:
-                    this.value -= value;
+                    this.values -= value;
                     break;
                 case Token.TokenMultiplyAssign:
-                    this.value *= value;
+                    this.values *= value;
                     break;
                 case Token.TokenDivideAssign:
-                    this.value /= value;
+                    this.values /= value;
                     break;
                 case Token.TokenModulusAssign:
-                    this.value %= value;
+                    this.values %= value;
                     break;
                 case Token.TokenShiftLeftAssign:
-                    this.value <<= value;
+                    this.values <<= value;
                     break;
                 case Token.TokenShiftRightAssign:
-                    this.value >>= value;
+                    this.values >>= value;
                     break;
                 case Token.TokenArithmeticAndAssign:
-                    this.value &= value;
+                    this.values &= value;
                     break;
                 case Token.TokenArithmeticOrAssign:
-                    this.value |= value;
+                    this.values |= value;
                     break;
                 case Token.TokenArithmeticExorAssign:
-                    this.value ^= value;
+                    this.values ^= value;
                     break;
                 default:
                     assert(false, `Unrecognized operator token ${opToken}`);
@@ -114,62 +118,52 @@ class Variable {
             return;
         }
 
-        let v = this.values;
-        for (let i = 0; i < indexes.length - 1; i ++) {
-            if (indexes[i] >= this.dataType.arrayIndexes[i]) {
-                platform.programFail(`array index ${indexes[i]} out of bound`);
-            }
-            v = v[indexes[i]];
-        }
-
-        if (indexes[-1] >= this.dataType.arrayIndexes[-1]) {
-            platform.programFail(`array index ${indexes[-1]} out of bound`);
-        }
-
+        // 变量是数组
+        const position = this.positionFromIndex(indexes);
         switch (opToken) {
             case Token.TokenAssign:
-                v[indexes[-1]] = value;
+                this.values[position] = value;
                 break;
             case Token.TokenMinus:
-                v[indexes[-1]] = -this.value;
+                this.values[position] = -this.value;
                 break;
             case Token.TokenUnaryNot:
-                v[indexes[-1]] = !this.value;
+                this.values[position] = !this.value;
                 break;
             case Token.TokenUnaryExor:
-                v[indexes[-1]] = ~this.value;
+                this.values[position] = ~this.value;
                 break;
             case Token.TokenIncrement:
             case Token.TokenAddAssign:
-                v[indexes[-1]] += value;
+                this.values[position] += value;
                 break;
             case Token.TokenDecrement:
             case Token.TokenSubtractAssign:
-                v[indexes[-1]] -= value;
+                this.values[position] -= value;
                 break;
             case Token.TokenMultiplyAssign:
-                v[indexes[-1]] *= value;
+                this.values[position] *= value;
                 break;
             case Token.TokenDivideAssign:
-                v[indexes[-1]] /= value;
+                this.values[position] /= value;
                 break;
             case Token.TokenModulusAssign:
-                v[indexes[-1]] %= value;
+                this.values[position] %= value;
                 break;
             case Token.TokenShiftLeftAssign:
-                v[indexes[-1]] <<= value;
+                this.values[position] <<= value;
                 break;
             case Token.TokenShiftRightAssign:
-                v[indexes[-1]] >>= value;
+                this.values[position] >>= value;
                 break;
             case Token.TokenArithmeticAndAssign:
-                v[indexes[-1]] &= value;
+                this.values[position] &= value;
                 break;
             case Token.TokenArithmeticOrAssign:
-                v[indexes[-1]] |= value;
+                this.values[position] |= value;
                 break;
             case Token.TokenArithmeticExorAssign:
-                v[indexes[-1]] ^= value;
+                this.values[position] ^= value;
                 break;
             default:
                 assert(false, `Unrecognized operator token ${opToken}`);
@@ -276,6 +270,27 @@ class Variable {
         return false; // todo
     }
 
+    isNumericElement() {
+        if (this.isPtrType()) {
+            return false;
+        }
+
+        switch (this.dataType.basetype) {
+            case BaseType.TypeInt:
+            case BaseType.TypeShort:
+            case BaseType.TypeChar:
+            case BaseType.TypeLong:
+            case BaseType.TypeUnsignedInt:
+            case BaseType.TypeUnsignedShort:
+            case BaseType.TypeUnsignedChar:
+            case BaseType.TypeUnsignedLong:
+            case BaseType.TypeFP:
+                return true;
+        }
+
+        return false; // todo
+    }
+
     getNumericValue() {
         if (!this.isNumericType()) {
             return null;
@@ -288,8 +303,36 @@ class Variable {
         return this.values;
     }
 
+    initNullValue() {
+        let value = null;
+        if (this.isNumericType()) {
+            value = 0;
+        }
+
+        let values = value;
+        if (this.arrayIndexes.length !== 0) {
+            values = [];
+            values.length = this.totalElements();
+            values.fill(value);
+        }
+
+        return;
+    }
+
+    initValue(value) {
+        if (value === null) {
+            return this.initNullValue();
+        }
+
+        this.assign(value);
+    }
+
     assignToPtr(indexes, rhs) {
-        if (rhs === null) {
+        if (rhs.isNumericType()) {
+            const n = rhs.getValue();
+            if (n !== 0) {
+                platform.programFail(`Semantic error: it is *NOT* safe to assign a non-zero number to a pointer`);
+            }
             this.setValue(indexes, null);
         }
 
@@ -330,6 +373,25 @@ class Variable {
         return result;
     }
 
+    totalElements() {
+        if (this.dataType.arrayIndexes.length === 0) {
+            return 1;
+        }
+
+        return this._factorial(...this.dataType.arrayIndexes);
+    }
+
+    positionFromIndex(accessIndexes) {
+        let position = 0;
+        let multi;
+        for (let i = 0; i < accessIndexes.length; i ++) {
+            multi = this._factorial(this.dataType.arrayIndexes.slice(i+1));
+            position += accessIndexes[i] * multi;
+        }
+
+        return position;
+    }
+
     handlePtrChange(indexes, n, opToken) {
         if (n === 0) {
             return this.createElementVariable(indexes);
@@ -347,7 +409,7 @@ class Variable {
         }
 
         // 计算出数组的全部元素数目
-        const numTotalElements = this._factorial(...refValue.refTo.dataType.arrayIndexes);
+        const numTotalElements = refValue.refTo.totalElements();
 
         // 计算出指针当前指向的元素位置
         let accessPosition = 0;
@@ -387,15 +449,95 @@ class Variable {
         }
 
         return this.createElementVariable(indexes);
-    }
+    } // end of handlePtrChange
 
-    assignConstant(indexes, n) {
-        if (!this.isNumericType()) {
+    assignNumeric(indexes, rhs) {
+        if (!this.isNumericElement()) {
             platform.programFail(`Incompatible types`);
         }
 
+        const n = rhs.getValue();
+        let result = Variable.convertNumericValue(this.dataType.baseType, n);
+        this.setValue(indexes, result);
+        return this.createElementVariable(indexes);
+    } // end of assignConstant
+
+    assign(indexes, rhs) {
+        if (this.isPtrType()) {
+            // 对指针赋值
+            return this.assignToPtr(indexes, rhs);
+        } else {
+            if (rhs.isPtrType()) {
+                platform.programFail(`Can Not assign a pointer to ${this.getTypeName()}`);
+            }
+            
+            if (rhs.isArrayType()) {
+                platform.programFail(`Can Not assign an array to ${this.getTypeName()}`);
+            }
+
+            if (rhs.isNumericType()) {
+                return this.assignConstant(indexes, rhs);
+            }
+
+        }
+
+        // todo
+        assert(false, `assign(${indexes})`);
+    } // end of assign
+
+    initValue(value) {
+    }
+
+    createDataType(baseType, numPtrs, customType, arrayIndexes) {
+        if (numPtrs === undefined) {
+            numPtrs = 0;
+        }
+        if (customType === undefined) {
+            customType = null;
+        }
+        if (arrayIndexes === undefined) {
+            arrayIndexes = [];
+        }
+
+        return {
+            baseType: baseType,
+            numPtrs: numPtrs,
+            arrayIndexes: arrayIndexes,
+            customType: customType
+        };
+    }
+
+    static createNumericVariable(baseType, name, value) {
+        const dataType = Variable.createDataType(baseType);
+        return new Variable(dataType, name, value);
+    }
+
+    static _isEqualArray(arr1, arr2) {
+        if (arr1.length !== arr2.length) {
+            return false;
+        }
+
+        for (let i = 0; i < arr1.length; i ++) {
+            if (arr1[i] !== arr2[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    static isSameType(type1, type2) {
+        return type1.baseType === type2.baseType &&
+                 type1.numPtrs === type2.numPtrs &&
+                 type1.customType === type2.customType &&
+                 Variable._isEqualArray(type1.arrayIndexes, type2.arrayIndexes);
+    }
+
+
+    static convertNumericValue(baseType, n) {
         let result = n;
-        switch(this.dataType.baseType) {
+
+        switch(baseType) {
             case BaseType.TypeInt:
                 if (n < 0) {
                     result = 0x80000000 - (n & 0x7FFFFFFF);
@@ -443,54 +585,11 @@ class Variable {
             case BaseType.TypeFP:
                 break;
             default:
-                assert(false, `internal error: assignConstant(): 
-                               wrong baesType: ${this.dataType.baseType}`);
-                break;
+                platform.programFail(`unexpected baseType ${baseType}`);
         }
 
-        this.setValue(indexes, result);
-        return this.createElementVariable(indexes);
-    } // end of assignConstant
-
-    assign(indexes, rhs) {
-        if (rhs === null) {
-            return this.assignToPtr(indexes, rhs);
-        } else if (rhs.isNumericType()) {
-            const n = rhs.getValue(indexes);
-            return this.assignConstant(indexes, n);
-        }
-
-        // rhs is an array
-        if (rhs.isArrayType()) {
-            if (this.isPtrType()) {
-                return this.assignToPtr(indexes, rhs);
-            }
-
-            platform.programFail(`Can Not assign an array to ${this.getTypeName()}`);
-        }
-
-        if (this.isPtrType()) {
-            return this.assignToPtr(indexes, rhs);
-        } else if (rhs.isPtrType()) {
-            platform.programFail(`Can Not assign a pointer to ${this.getTypeName()}`);
-        }
-
-        // todo
-        assert(false, `assignVariable(${indexes})`);
+        return result;
     }
-
-    static createNumericVariable(baseType, name, value) {
-        const dataType = {
-            baseType: baseType,
-            numPtrs: 0,
-            arrayIndexes: []
-        };
-
-        return new Variable(dataType, name, value);
-    }
-
-
-
 
 }
 
