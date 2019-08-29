@@ -1,7 +1,7 @@
 
 class Scope {
-    constructor(name) {
-        this.name = name;
+    constructor(tag) {
+        this.tag = tag;
         this.idents = new Map();
         this.types = new Map();
     }
@@ -38,8 +38,8 @@ class Scopes {
         this.current = this.global;
     }
 
-    pushScope(name) {
-        const scope = new Scope(name);
+    pushScope(tag) {
+        const scope = new Scope(tag);
         this.current = scope;
         // 最近的scope插入到数组的最前面，便于后面进行遍历
         return this.locals.unshift(scope);
@@ -78,6 +78,10 @@ class Scopes {
 
     addIdent(ident, value) {
         this.current.setIdent(ident, value);
+    }
+
+    isInGlobalScope() {
+        return this.current === this.global;
     }
 }
 

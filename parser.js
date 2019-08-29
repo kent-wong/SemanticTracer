@@ -792,23 +792,20 @@ class Parser {
         return astBlock;
     }
     
+    // 解析if...else/for/while/do...while/function definition等的语句体
     parseBody() {
-        let astBlock = null;
+        let astResult = null;
 
         if (this.lexer.forwardIfMatch(Token.TokenLeftBrace)) {
-            astBlock = this.parseBlock(Token.TokenRightBrace);
+            astResult = this.parseBlock(Token.TokenRightBrace);
         } else {
-            const statement = this.parseStatement();
-            if (statement !== null) {
-                astBlock = this.createAstBlock();
-                astBlock.push(statement);
-            }
-
+            // 如果语句体没有大括号，则其必须为表达式
+            astResult = this.parseExpression();
         }
         this.getToken();
 
-        return astBlock;
-    }
+        return astResult;
+    } // end of parseBody()
 
     parseWhile() {
         let token = Token.TokenNone;
@@ -872,7 +869,7 @@ class Parser {
         }
 
         return astDoWhile;
-    }
+    } // end of parseDoWhile
 
     parseFor() {
         let initial = null;
@@ -903,7 +900,7 @@ class Parser {
         body.block = this.parseBody();
         
         return body;
-    }
+    } // end of parseFor()
 
     parseSwitch() {
         let token = Token.TokenNone;
@@ -991,7 +988,7 @@ class Parser {
             astIf.conditional = conditional;
             this.getToken();
         } else {
-            platform.programFail(`expected expression before ')' token`);
+            platform.programFail(`expect expression before ')' token`);
         }
 
         astIf.ifBranch = this.parseBody();

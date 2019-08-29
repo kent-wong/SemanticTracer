@@ -428,6 +428,7 @@ class Evaluator {
             }
 
             rhs = stack.pop();
+            // 由于"||"操作符的"shortcut"特性，将潜在的修改变量的单目操作挪到这里
             rhs = this.evalUnaryOperator(rhs);
 
             stack.pop();
@@ -489,7 +490,7 @@ class Evaluator {
     } // end of expressionReduceStack
 
     // 对表达式进行求值，返回variable
-    evalExpression(AstExpression) {
+    evalExpression(AstExpression, needReturn) {
         let astExpr = AstExpression;
         let result;
         let expList;
@@ -516,15 +517,19 @@ class Evaluator {
             astExpr = astExpr.astNextExpression;
         } while (astExpr !== null);
 
-        if (result.astType === Ast.AstConstant) {
-            result = Variable.createNumericVariable(BaseType.TypeInt, null, result.value);
-        } else if (result.astType === Ast.AstVariable) {
-            result = result.value;
-        } else {
+        if (result.astType !== Ast.AstConstant && result.astType !== Ast.AstVariable) {
             assert(false, `internal: evalExpression(): Unexpected astType ${result.astType}`);
         }
 
-        return result;
+        if (needReturn) {
+            if (result.astType === Ast.AstConstant) {
+                result = Variable.createNumericVariable(BaseType.TypeInt, null, result.value);
+            } else if (result.astType === Ast.AstVariable) {
+                result = result.value;
+            }
+
+            return result;
+        }
     } // end of evalExpression
 
     evalExpressionInt(AstExpression) {
@@ -549,6 +554,7 @@ class Evaluator {
     }
 
     // 进行单目运算符、函数调用，子表达式的计算
+    // 用于规避"||"操作符的"shortcut"特性
     evalUnaryOperator(ast) {
         let result = ast;
 
@@ -828,6 +834,121 @@ class Evaluator {
 
         return variable.setValue(astIdent.accessIndexes, n, assignToken);
     } // end of evalAssignOperator
+
+    evalBlock(astBlock) {
+        this.scopes.pushScope('block');
+        for (let statement of astBlock.statements) {
+            evalDispatch(statement);
+        }
+        this.scopes.popScope();
+    }
+
+    evalBody(astBody) {
+        switch (astBody.astType) {
+            case Ast.AstExpression:
+                this.evalExpression(astBody);
+                break;
+            case Ast.AstBlock:
+                this.evalBlock(astBody);
+                break;
+            default:
+                assert(false, `internal: evalBody(): unexpected Ast Type ${astBody.astType}`);
+                break;
+        }
+
+        return ;
+    }
+
+    evalIf(astIf) {
+        const condition = this.evalExpressionBoolean(astIf.conditional);
+
+        if (condition) {
+            this.evalBody(astIf.ifBranch);
+        } else {
+            if (astIf.elseBranch.astType === Ast.AstIf) {
+                this.evalIf(astIf.elseBranch);
+            } else {
+                this.evalBody(astIf.elseBranch);
+            }
+        }
+
+        return ;
+    }
+
+    evalWhile(astWhile) {
+        while (true) {
+            const condition = this.evalExpressionBoolean(astWhile.conditional);
+            if (!condition) {
+                break;
+            }
+
+            this.evalBody(astWhile.body);
+        }
+    }
+
+    evalDoWhile(astDoWhile) {
+        while (true) {
+            this.evalBody(astWhile.body);
+
+            const condition = this.evalExpressionBoolean(astWhile.conditional);
+            if (!condition) {
+                break;
+            }
+        }
+    }
+
+
+
+    // 根据AST类型进行分发处理
+    evalDispatch(astNode) {
+        switch (astNode.astType) {
+            case Ast.AstDeclaration:
+                this.evalDeclaration(astNode);
+                break;
+            case Ast.AstExpression:
+                this.evalExpression(astNode);
+                break;
+            case Ast.AstBlock:
+                this.evalBlock(astNode);
+                break;
+
+            case Ast.AstIf:
+                this.evalIf();
+                break;
+            case Ast.AstWhile:
+                break;
+            case Ast.AstDoWhile:
+                break;
+            case Ast.AstFor:
+                break;
+            case Ast.AstSwitch:
+                break;
+
+            case Ast.AstStruct:
+                break;
+            case Ast.AstUnion:
+                break;
+            case Ast.AstTypedef:
+                break;
+
+            case Ast.AstBreak:
+                break;
+            case Ast.AstContinue:
+                break;
+            case Ast.AstReturn:
+                break;
+
+            case Ast.AstFuncDef:
+                break;
+            case Ast.AstFuncCall:
+                break;
+
+            default:
+                break;
+        }
+
+        return ;
+    }
 
 
 }
