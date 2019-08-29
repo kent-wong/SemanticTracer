@@ -8,6 +8,15 @@ const Ast = require('./ast');
 const Variable = require('./variable');
 const ArrayInit = require('./arrayInit');
 
+let __controlStatus = undefined;
+let __returnValue = undefined;
+
+const ControlStatus = {
+    CONTINUE: 1,
+    BREAK: 2,
+    RETURN: 3
+};
+
 const prio = new Map([
     // 第三等优先级
     [Token.TokenAsterisk, 3],
@@ -836,8 +845,21 @@ class Evaluator {
     } // end of evalAssignOperator
 
     evalBlock(astBlock) {
-        this.scopes.pushScope('block');
+        this.scopes.pushScope(Ast.AstBlock);
         for (let statement of astBlock.statements) {
+            if (statement.astType === Ast.AstContinue) {
+                break;
+            }
+            if (statement.astType === Ast.AstBreak) {
+                __controlStatus = ControlStatus.BREAK;
+                break;
+            }
+            if (statement.astType === Ast.AstReturn) {
+                __returnValue = this.evalExpression(statement.value);
+                __controlStatus = ControlStatus.RETURN;
+                return ;
+            }
+
             evalDispatch(statement);
         }
         this.scopes.popScope();
@@ -883,12 +905,28 @@ class Evaluator {
             }
 
             this.evalBody(astWhile.body);
+            if (__controlStatus === ControlStatus.BREAK) {
+                __controlStatus = undefined;
+                break;
+            }
+            if (__controlStatus === ControlStatus.RETURN) {
+                __controlStatus = undefined;
+                return ;
+            }
         }
     }
 
     evalDoWhile(astDoWhile) {
         while (true) {
             this.evalBody(astWhile.body);
+            if (__controlStatus === ControlStatus.BREAK) {
+                __controlStatus = undefined;
+                break;
+            }
+            if (__controlStatus === ControlStatus.RETURN) {
+                __controlStatus = undefined;
+                return ;
+            }
 
             const condition = this.evalExpressionBoolean(astWhile.conditional);
             if (!condition) {
@@ -897,7 +935,55 @@ class Evaluator {
         }
     }
 
+    evalFor(astFor) {
+        this.pushScope(Ast.AstFor);
+        if (astFor.initial !== null) {
+            this.evalDeclaration(astFor.initial);
+        }
 
+        while(this.evalExpressionBoolean(astFor.conditional)) {
+            this.evalBody(astFor.body);
+            if (__controlStatus === ControlStatus.BREAK) {
+                __controlStatus = undefined;
+                break;
+            }
+            if (__controlStatus === ControlStatus.RETURN) {
+                __controlStatus = undefined;
+                return ;
+            }
+
+            this.evalExpression(astFor.finalExpression);
+        }
+        this.popScope();
+    }
+
+    evalSwitch(astSwitch) {
+        let matched = false;
+        const value = this.evalExpressionBoolean(astSwitch.value);
+
+        switchStatement:
+        for (let v of astSwitch.cases) {
+            if (!matched) {
+                let caseValue = this.evalExpression(v.expression);
+                matched = this.evalBinaryOperator(value, caseValue, Token.TokenEqual).value.getNumericValue();
+            }
+            if (matched) {
+                matched = true;
+                for (let statement of v.block.statements) {
+                    if (statement.astType === Ast.AstBreak) {
+                        __controlStatus = ControlStatus.BREAK;
+                        break switchStatement;
+                    }
+
+                    this.evalDispatch(statement);
+                }
+            }
+        }
+
+        // 处理default的情况
+
+
+    }
 
     // 根据AST类型进行分发处理
     evalDispatch(astNode) {
@@ -913,13 +999,16 @@ class Evaluator {
                 break;
 
             case Ast.AstIf:
-                this.evalIf();
+                this.evalIf(astNode);
                 break;
             case Ast.AstWhile:
+                this.evalWhile(astNode);
                 break;
             case Ast.AstDoWhile:
+                this.evalDoWhile(astNode);
                 break;
             case Ast.AstFor:
+                this.evalFor(astNode);
                 break;
             case Ast.AstSwitch:
                 break;
@@ -932,10 +1021,13 @@ class Evaluator {
                 break;
 
             case Ast.AstBreak:
+                assert(false, 'internal: evalDispatch(): AstBreak should not be here');
                 break;
             case Ast.AstContinue:
+                assert(false, 'internal: evalDispatch(): AstContinue should not be here');
                 break;
             case Ast.AstReturn:
+                assert(false, 'internal: evalDispatch(): AstReturn should not be here');
                 break;
 
             case Ast.AstFuncDef:

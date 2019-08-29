@@ -876,12 +876,12 @@ class Parser {
         let conditional = null;
         let finalExpression = null;
 
-        const body = {
+        const astFor = {
             astType: Ast.AstFor,
             initial: null,
             conditional: null,
             finalExpression: null,
-            block: null
+            body: null
         };
 
         if (!this.lexer.forwardIfMatch(Token.TokenOpenParenth)) {
@@ -894,21 +894,20 @@ class Parser {
 
         assert(this.getToken(), Token.TokenCloseParenth, `parseFor(): ')' is expected`);
 
-        body.initial = initial;
-        body.conditional = conditional;
-        body.finalExpression = finalExpression;
-        body.block = this.parseBody();
+        astFor.initial = initial;
+        astFor.conditional = conditional;
+        astFor.finalExpression = finalExpression;
+        astFor.body = this.parseBody();
         
-        return body;
+        return astFor;
     } // end of parseFor()
 
     parseSwitch() {
         let token = Token.TokenNone;
-        let conditional = null;
 
         const astSwitch = {
             astType: Ast.AstSwitch,
-            conditional: null,
+            value: null,
             cases: [],
             default: null,
             pushCase: function(expression, block) {
@@ -925,8 +924,7 @@ class Parser {
 
         token = this.peekToken();
         if (token !== Token.TokenCloseParenth) {
-            conditional = this.parseExpression(Token.TokenCloseParenth);
-            astSwitch.conditional = conditional;
+            astSwitch.value = this.parseExpression(Token.TokenCloseParenth);
             this.getToken();
         } else {
             platform.programFail(`expected expression before ')' token`);
