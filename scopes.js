@@ -83,6 +83,36 @@ class Scopes {
     isInGlobalScope() {
         return this.current === this.global;
     }
+
+    callstack() {
+        return this.locals;
+    }
+
+    hasScope(scopeTag) {
+        let found = false;
+
+        for (let scope of this.locals) {
+            if (scope.tag === scopeTag) {
+                found = true;
+                break;
+            }
+        }
+
+        return found;
+    }
+
+    hasAnyScope(...scopeTags) {
+        let found = false;
+
+        for (let scope of this.locals) {
+            if (scopeTags.includes(scope.tag)) {
+                found = true;
+                break;
+            }
+        }
+
+        return found;
+    }
 }
 
 const sc = new Scopes();

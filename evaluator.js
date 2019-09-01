@@ -8,8 +8,8 @@ const Ast = require('./ast');
 const Variable = require('./variable');
 const ArrayInit = require('./arrayInit');
 
-let __controlStatus = undefined;
-let __returnValue = undefined;
+let __controlStatus = null;
+let __returnValue = null;
 
 const ControlStatus = {
     CONTINUE: 1,
@@ -847,20 +847,35 @@ class Evaluator {
     evalBlock(astBlock) {
         this.scopes.pushScope(Ast.AstBlock);
         for (let statement of astBlock.statements) {
+            /*
             if (statement.astType === Ast.AstContinue) {
+                __controlStatus = ControlStatus.CONTINUE;
                 break;
             }
             if (statement.astType === Ast.AstBreak) {
                 __controlStatus = ControlStatus.BREAK;
                 break;
             }
+            // RETURN只可能发生在block中(switch语句中也要特殊处理)
             if (statement.astType === Ast.AstReturn) {
                 __returnValue = this.evalExpression(statement.value);
                 __controlStatus = ControlStatus.RETURN;
                 return ;
             }
+            */
 
             evalDispatch(statement);
+
+            // 判断执行的语句是否为continue, break, return
+            if (statement.astType === Ast.AstContinue) {
+                break;
+            }
+            if (statement.astType === Ast.AstBreak) {
+                break;
+            }
+            if (__controlStatus === ControlStatus.RETURN) {
+                return ;
+            }
         }
         this.scopes.popScope();
     }
@@ -905,12 +920,17 @@ class Evaluator {
             }
 
             this.evalBody(astWhile.body);
+            if (__controlStatus === ControlStatus.CONTINUE) {
+                // 在循环中终结continue
+                __controlStatus = null;
+                break ;
+            }
             if (__controlStatus === ControlStatus.BREAK) {
-                __controlStatus = undefined;
+                // 在循环中终结break
+                __controlStatus = null;
                 break;
             }
             if (__controlStatus === ControlStatus.RETURN) {
-                __controlStatus = undefined;
                 return ;
             }
         }
@@ -919,12 +939,17 @@ class Evaluator {
     evalDoWhile(astDoWhile) {
         while (true) {
             this.evalBody(astWhile.body);
+            if (__controlStatus === ControlStatus.CONTINUE) {
+                // 在循环中终结continue
+                __controlStatus = null;
+                break ;
+            }
             if (__controlStatus === ControlStatus.BREAK) {
-                __controlStatus = undefined;
+                // 在循环中终结break
+                __controlStatus = null;
                 break;
             }
             if (__controlStatus === ControlStatus.RETURN) {
-                __controlStatus = undefined;
                 return ;
             }
 
@@ -943,12 +968,17 @@ class Evaluator {
 
         while(this.evalExpressionBoolean(astFor.conditional)) {
             this.evalBody(astFor.body);
+            if (__controlStatus === ControlStatus.CONTINUE) {
+                // 在循环中终结continue
+                __controlStatus = null;
+                break ;
+            }
             if (__controlStatus === ControlStatus.BREAK) {
-                __controlStatus = undefined;
+                // 在循环中终结break
+                __controlStatus = null;
                 break;
             }
             if (__controlStatus === ControlStatus.RETURN) {
-                __controlStatus = undefined;
                 return ;
             }
 
@@ -957,32 +987,63 @@ class Evaluator {
         this.popScope();
     }
 
+    /*
+    const astSwitch = {
+        astType: Ast.AstSwitch,
+        value: null, // astExpression
+        cases: [], // astExpression
+        default: null, // astBlock
+        pushCase: function(expression, block) {
+            this.cases.push({
+                expression: expression, // astExpression
+                block: block // astBlock
+            });
+        }
+    };
+    */
     evalSwitch(astSwitch) {
         let matched = false;
-        const value = this.evalExpressionBoolean(astSwitch.value);
+        let isDefault = true;
+        const value = this.evalExpression(astSwitch.value);
 
-        switchStatement:
+        switchStatement: // a label
         for (let v of astSwitch.cases) {
             if (!matched) {
                 let caseValue = this.evalExpression(v.expression);
                 matched = this.evalBinaryOperator(value, caseValue, Token.TokenEqual).value.getNumericValue();
             }
             if (matched) {
-                matched = true;
+                isDefault = false;
                 for (let statement of v.block.statements) {
-                    if (statement.astType === Ast.AstBreak) {
-                        __controlStatus = ControlStatus.BREAK;
-                        break switchStatement;
-                    }
-
                     this.evalDispatch(statement);
+                    if (statement.astType === Ast.AstContinue) {
+                        break switchStatement; // jump to the label
+                    }
+                    if (statement.astType === Ast.AstBreak) {
+                        break switchStatement; // jump to the label
+                    }
+                    if (__controlStatus === ControlStatus.RETURN) {
+                        return ;
+                    }
                 }
             }
         }
 
         // 处理default的情况
-
-
+        if (isDefault) {
+            for (let statement of astSwitch.default.statements) {
+                this.evalDispatch(statement);
+                if (statement.astType === Ast.AstContinue) {
+                    break;
+                }
+                if (statement.astType === Ast.AstBreak) {
+                    break;
+                }
+                if (__controlStatus === ControlStatus.RETURN) {
+                    return ;
+                }
+            }
+        }
     }
 
     // 根据AST类型进行分发处理
@@ -1020,14 +1081,23 @@ class Evaluator {
             case Ast.AstTypedef:
                 break;
 
-            case Ast.AstBreak:
-                assert(false, 'internal: evalDispatch(): AstBreak should not be here');
-                break;
             case Ast.AstContinue:
-                assert(false, 'internal: evalDispatch(): AstContinue should not be here');
+                if (!this.scopes.hasAnyScope(Ast.AstFor, Ast.AstWhile, Ast.AstDoWhile)) {
+                    platform.programFail(`continue statement not within a loop`);
+                }
+                __controlStatus = ControlStatus.CONTINUE;
+                break;
+            case Ast.AstBreak:
+                if (!this.scopes.hasAnyScope(Ast.AstFor, Ast.AstWhile, Ast.AstDoWhile, Ast.AstSwitch)) {
+                    platform.programFail(`break statement not within loop or switch`);
+                }
+                __controlStatus = ControlStatus.BREAK;
                 break;
             case Ast.AstReturn:
-                assert(false, 'internal: evalDispatch(): AstReturn should not be here');
+                // todo
+                __returnValue = this.evalExpression(statement.value);
+                __controlStatus = ControlStatus.RETURN;
+                //platform.programFail(`return statement not within a function`);
                 break;
 
             case Ast.AstFuncDef:
