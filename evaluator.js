@@ -847,23 +847,6 @@ class Evaluator {
     evalBlock(astBlock) {
         this.scopes.pushScope(Ast.AstBlock);
         for (let statement of astBlock.statements) {
-            /*
-            if (statement.astType === Ast.AstContinue) {
-                __controlStatus = ControlStatus.CONTINUE;
-                break;
-            }
-            if (statement.astType === Ast.AstBreak) {
-                __controlStatus = ControlStatus.BREAK;
-                break;
-            }
-            // RETURN只可能发生在block中(switch语句中也要特殊处理)
-            if (statement.astType === Ast.AstReturn) {
-                __returnValue = this.evalExpression(statement.value);
-                __controlStatus = ControlStatus.RETURN;
-                return ;
-            }
-            */
-
             evalDispatch(statement);
 
             // 判断执行的语句是否为continue, break, return
@@ -1020,6 +1003,8 @@ class Evaluator {
                         break switchStatement; // jump to the label
                     }
                     if (statement.astType === Ast.AstBreak) {
+                        // 在switch中终结break
+                        __controlStatus = null;
                         break switchStatement; // jump to the label
                     }
                     if (__controlStatus === ControlStatus.RETURN) {
@@ -1037,6 +1022,8 @@ class Evaluator {
                     break;
                 }
                 if (statement.astType === Ast.AstBreak) {
+                    // 在switch中终结break
+                    __controlStatus = null;
                     break;
                 }
                 if (__controlStatus === ControlStatus.RETURN) {
