@@ -1038,7 +1038,7 @@ class Parser {
 
             let {token, value: paramName} = this.getTokenInfo();
             if (token !== Token.TokenIdentifier) {
-                platform.programFail(`expected an identifier, but got token ${Token.getTokenName(token)}`);
+                platform.programFail(`expected parameter name, but got token ${Token.getTokenName(token)}`);
             }
 
             astParam.ident = paramName;
@@ -1082,6 +1082,13 @@ class Parser {
 
         token = this.peekToken();
         if (token === Token.TokenLeftBrace) {
+            // 函数定义中，函数的参数必须有名字
+            for (let param of astFuncDef.params) {
+                if (param.ident === null) {
+                    platform.programFail(`parameter name omitted`);
+                }
+            }
+
             astFuncDef.body = this.parseBody();
         } else if (token === Token.TokenSemicolon) {
             // 只是函数声明，没有函数体

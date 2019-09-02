@@ -850,10 +850,10 @@ class Evaluator {
             evalDispatch(statement);
 
             // 判断执行的语句是否为continue, break, return
-            if (statement.astType === Ast.AstContinue) {
+            if (__controlStatus === ControlStatus.CONTINUE) {
                 break;
             }
-            if (statement.astType === Ast.AstBreak) {
+            if (__controlStatus === ControlStatus.BREAK) {
                 break;
             }
             if (__controlStatus === ControlStatus.RETURN) {
@@ -999,10 +999,10 @@ class Evaluator {
                 isDefault = false;
                 for (let statement of v.block.statements) {
                     this.evalDispatch(statement);
-                    if (statement.astType === Ast.AstContinue) {
+                    if (__controlStatus === ControlStatus.CONTINUE) {
                         break switchStatement; // jump to the label
                     }
-                    if (statement.astType === Ast.AstBreak) {
+                    if (__controlStatus === ControlStatus.BREAK) {
                         // 在switch中终结break
                         __controlStatus = null;
                         break switchStatement; // jump to the label
@@ -1018,10 +1018,10 @@ class Evaluator {
         if (isDefault) {
             for (let statement of astSwitch.default.statements) {
                 this.evalDispatch(statement);
-                if (statement.astType === Ast.AstContinue) {
+                if (__controlStatus === ControlStatus.CONTINUE) {
                     break;
                 }
-                if (statement.astType === Ast.AstBreak) {
+                if (__controlStatus === ControlStatus.BREAK) {
                     // 在switch中终结break
                     __controlStatus = null;
                     break;
@@ -1031,6 +1031,68 @@ class Evaluator {
                 }
             }
         }
+    }
+
+    /* parser.js:
+    // 参数的AST
+    const astParam = {
+        astType: Ast.AstParam,
+        paramType: astParamType,
+        ident: null,
+        arrayIndexes: []
+    };
+    const astFuncDef = {
+        astType: Ast.AstFuncDef,
+        name: null,
+        params: [],
+        body: null,
+        returnType: returnType
+    };
+    */
+    evalFuncDef(astFuncDef) {
+        // 函数定义只允许出现在全局命名空间
+        if (!this.scopes.isInGlobalScope()) {
+            platform.programFail(`function definition is only allowed in global scope`);
+        }
+
+        // 检查是否有重名的变量存在
+        if (this.scopes.findGlobalIdent(astFuncDef.name) !== null) {
+            platform.programFail(`redeclaration of ${astFuncDef.name}`);
+        }
+
+        // 评估返回类型
+        const returnType = this.createDataType(astFuncDef.returnType.astBaseType,
+                                               astFuncDef.returnType.numPtrs,
+                                               astFuncDef.returnType.ident);
+        astFuncDef.returnType = returnType;
+
+        // evaluate parameters
+        const varParams = [];
+        let paramType;
+        let paramIndexes;
+        let paramVariable;
+        for (let param of astFuncDef.params) {
+            paramType = this.createDataType(param.paramType.astBaseType,
+                                               param.paramType.numPtrs,
+                                               param.paramType.ident);
+            paramIndexes = [];
+            for (let idxExpression of param.arrayIndexes) {
+                paramIndexes.push(this.evalExpressionInt(idxExpression));
+            }
+            paramType.arrayIndexes = paramIndexes;
+
+            // 创建形参变量
+            paramVariable = new Variable(paramType, param.ident, null);
+            paramVariable.initDefaultValue();
+
+            varParams.push(paramVariable);
+        }
+
+        astFuncDef.params = varParams;
+
+        // 加入全局scope
+        this.scopes.addIdent(astFuncDef.name, astFuncDef);
+        return ;
     }
 
     // 根据AST类型进行分发处理
