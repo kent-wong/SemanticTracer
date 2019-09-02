@@ -1055,7 +1055,7 @@ class Evaluator {
             platform.programFail(`function definition is only allowed in global scope`);
         }
 
-        // 检查是否有重名的变量存在
+        // 检查是否有重名的函数/变量存在
         if (this.scopes.findGlobalIdent(astFuncDef.name) !== null) {
             platform.programFail(`redeclaration of ${astFuncDef.name}`);
         }
@@ -1093,6 +1093,55 @@ class Evaluator {
         // 加入全局scope
         this.scopes.addIdent(astFuncDef.name, astFuncDef);
         return ;
+    } // end of evalFuncDef()
+
+    /* parser.js:
+    const astFuncCall = {
+        astType: Ast.AstFuncCall,
+        name: funcName,
+        args: args // expression
+    };
+    const astExpression = {
+        astType: Ast.AstExpression,
+        elementList: elementList,
+        next: astNextExpression
+    };
+    */
+    evalFuncCall(astFuncCall) {
+        // 检查函数是否已经定义
+        const astFuncDef = this.scopes.findGlobalIdent(astFuncCall.name);
+        if (astFuncDef === null) {
+            platform.programFail(`function ${astFuncCall.name} is NOT defined`);
+        }
+        if (astFuncDef.body === null) {
+            // 函数只声明了，但是没定义
+            platform.programFail(`function ${astFuncCall.name} declared but NOT defined`);
+        }
+
+        // 比较函数形参和实参数目，必须一致
+        // todo: 变参函数
+        if (astFuncDef.params.length > astFuncCall.args.length) {
+            platform.programFail(`too few arguments to function '${astFuncCall.name}'`);
+        } else if (astFuncDef.params.length < astFuncCall.args.length) {
+            platform.programFail(`too many arguments to function '${astFuncCall.name}'`);
+        }
+
+        // evaluate arguments
+        const varArgs = [];
+        for (let arg of astFuncCall.args) {
+            varArgs.push(this.evalExpression(arg));
+        }
+
+        // 创建新的scope(调用栈)
+        this.scopes.pushScope(Ast.AstFuncCall);
+        // 用实参替换形参
+        for (let i = 0; i < varArgs.length; i ++) {
+        }
+
+
+
+
+        this.scopes.popScope();
     }
 
     // 根据AST类型进行分发处理
@@ -1144,14 +1193,16 @@ class Evaluator {
                 break;
             case Ast.AstReturn:
                 // todo
-                __returnValue = this.evalExpression(statement.value);
+                __returnValue = this.evalExpression(astNode.value);
                 __controlStatus = ControlStatus.RETURN;
                 //platform.programFail(`return statement not within a function`);
                 break;
 
             case Ast.AstFuncDef:
+                this.evalFuncDef(astNode);
                 break;
             case Ast.AstFuncCall:
+                this.evalFuncCall(astNode);
                 break;
 
             default:
