@@ -226,7 +226,7 @@ class Variable {
     }
 
     // 创建一个指针variable，以指定的元素为其引用
-    createElementRefVariable(indexes) {
+    createElementPtrVariable(indexes) {
         if (indexes === undefined) {
             indexes = [];
         }
@@ -248,6 +248,21 @@ class Variable {
 
         return theVariable;
     }
+
+    // 创建别名，别名和原变量引用同样的数据
+    // 别名主要用于在函数调用时用实参数组替换形参数组
+    createAlias(aliasName) {
+        const theType = {
+            baseType: this.dataType.baseType,
+            numPtrs: this.dataType.numPtrs,
+            arrayIndexes: this.dataType.arrayIndexes,
+            customType: this.dataType.customType
+        };
+
+        const theVariable = new Variable(theType, aliasName, this.values);
+
+        return theVariable;
+    } // end of createArrayPtrVariable()
 
     isPtrType() {
         return this.dataType.numPtrs !== 0;

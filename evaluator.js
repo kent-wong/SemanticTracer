@@ -194,7 +194,7 @@ class Evaluator {
         }
 
         variable.checkAccessIndexes(astIdent.accessIndexes);
-        return variable.createElementRefVariable(astIdent.accessIndexes);
+        return variable.createElementPtrVariable(astIdent.accessIndexes);
     }
 
     evalTakeValue(astTakeValue) {
@@ -583,6 +583,7 @@ class Evaluator {
                 }
                 break;
             case Ast.AstFuncCall:
+                result = this.evalFuncCall(ast);
                 break;
             case Ast.AstExpression:
                 result = this.evalExpression(ast);
@@ -1128,20 +1129,68 @@ class Evaluator {
 
         // evaluate arguments
         const varArgs = [];
-        for (let arg of astFuncCall.args) {
-            varArgs.push(this.evalExpression(arg));
+        let astArgExpression = astFuncCall.args;
+        let astArgNext;
+        let varResult;
+        while (astArgExpression !== null) {
+            astArgNext = astArgExpression.next;
+            astArgExpression.next = null;
+
+            varResult = this.evalExpression(astArgExpression);
+            varArgs.push(varResult);
+
+            astArgExpression = astArgNext;
         }
 
         // 创建新的scope(调用栈)
         this.scopes.pushScope(Ast.AstFuncCall);
+
         // 用实参替换形参
+        let varParam;
+        let varArg;
         for (let i = 0; i < varArgs.length; i ++) {
+            varParam = astFuncDef.params[i];
+            varArg = astFuncCall.args[i];
+
+            // 检查形参是否为数组
+            // 注意：这里要单独处理，因为通常情况下不能对数组进行赋值
+            if (varParam.dataType.arrayIndexes.length !== 0) {
+                if (varParam.dataType.arrayIndexes.length !== varArg.dataType.arrayIndexes.length) {
+                    platform.programFail(`argument ${i} has different dimension as corresponding parameter`);
+                }
+                for (let dim = 0; dim < varParam.dataType.arrayIndexes.length; dim ++) {
+                    if (dim == 0 && varParam.dataType.arrayIndexes[dim] === 0) {
+                        continue;
+                    }
+                    if (varParam.dataType.arrayIndexes[dim] !== varArg.dataType.arrayIndexes[dim]) {
+                        platform.programFail(`argument ${i} has different array definition as corresponding parameter`);
+                    }
+                }
+
+                const varAlias = varArg.createAlias(varParam.name);
+                this.scopes.addIdent(varAlias.name, varAlias);
+            } else {
+                varParam.assign([], varArg);
+                this.scopes.addIdent(varParam.name, varParam);
+            }
+
         }
 
+        // 执行函数体
+        this.evalBody(astFuncDef.body);
 
+        // 查看返回值
+        let retValue = new Variable(astFuncDef.returnType, null, null);
+        if (__controlStatus === ControlStatus.RETURN) {
+            retValue.assign([], __returnValue);
+            __returnValue = null;
+            __controlStatus = null; // RETURN在这里终结
+        }
 
-
+        // 弹出调用栈
         this.scopes.popScope();
+
+        return retValue;
     }
 
     // 根据AST类型进行分发处理
