@@ -1,12 +1,13 @@
 const assert = require('assert');
 const Token = require('./interpreter');
 const BaseType = require('./basetype');
-const ValueType = require('./valuetype');
 const Scopes = require('./scopes');
 const platform = require('./platform');
 const Ast = require('./ast');
 const Variable = require('./variable');
 const ArrayInit = require('./arrayInit');
+const Parser = require('./parser');
+const debug = require('./debug');
 
 let __controlStatus = null;
 let __returnValue = null;
@@ -1262,4 +1263,12 @@ class Evaluator {
     }
 
 
+}
+
+const parser = new Parser('./test.c');
+
+let res;
+while ((res = parser.parseStatement()) !== null) {
+    //console.log(res);
+    debug.debugShow(res);
 }

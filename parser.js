@@ -1268,9 +1268,4 @@ class Parser {
     } // end of parseStatement()
 }
 
-const parser = new Parser('./test.c');
-
-let res;
-while ((res = parser.parseStatement()) !== null) {
-    console.log(res);
-}
+module.exports = Parser;

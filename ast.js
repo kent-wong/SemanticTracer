@@ -44,11 +44,52 @@ const AstEnum = {
             astType: this.AstComposite,
             astList: astList
         };
+    },
+
+    getAstName(ast) {
+        return AstNames[ast];
     }
 };
 
 const AstNames = [
+    "AstNone",
+    "AstOperator",
+    "AstDeclaration",
+    "AstAssign",
+    "AstExpression",
+    "AstIf",
+    "AstWhile",
+    "AstFor",
+    "AstDoWhile",
+    "AstStruct",
+    "AstUnion",
+    "AstEnum",
+    "AstFuncDef",
+    "AstFuncCall",
+    "AstTypedef",
+    "AstIndexOp",
+    "AstMemberOp",
+    "AstPtrMemberOp",
+    "AstIdentifier",
+    "AstBlock",
+    "AstConstant",
+    "AstPrefixOp",
+    "AstPostfixOp",
+    "AstTakeAddress",
+    "AstTakeValue",
+    "AstUMinus",
+    "AstUnaryNot",
+    "AstUnaryExor",
+    "AstSwitch",
+    "AstParam",
+    "AstComposite",
+    "AstReturn",
+    "AstBreak",
+    "AstContinue",
+    "AstTernary",
+    "AstVariable",
+    "AstArrayInitializer"
 ];
 
-//console.log(AstNames[AstEnum.AstIdentifier]);
 module.exports = AstEnum;
+//console.log(AstEnum.getAstName(AstEnum.AstIdentifier));

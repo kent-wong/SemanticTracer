@@ -209,7 +209,7 @@ const TokenEnum = {
 	TokenEndOfFunction: 0x5f,
 	TokenBackSlash: 0x60,
 
-	getTokenName: function(token) {
+	getTokenName(token) {
 		return tokenNames[token];
 	}
 };
