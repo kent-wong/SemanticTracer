@@ -7,7 +7,7 @@ class Scope {
     }
 
     getIdent(name) {
-        const result = this.idents.get(name);
+        let result = this.idents.get(name);
         if (result === undefined) {
             result = null;
         }
@@ -19,7 +19,7 @@ class Scope {
     }
 
     getType(name) {
-        const result = this.types.get(name);
+        let result = this.types.get(name);
         if (result === undefined) {
             result = null;
         }
@@ -69,7 +69,7 @@ class Scopes {
             }
         }
 
-        return global.getIdent(ident);
+        return this.global.getIdent(ident);
     }
 
     findGlobalIdent(ident) {

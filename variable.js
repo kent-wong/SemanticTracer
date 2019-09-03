@@ -194,6 +194,18 @@ class Variable {
         this.setValue(indexes, value, Token.TokenUnaryExor);
     }
 
+    static createDataType(baseType, numPtrs, customType) {
+        numPtrs = (numPtrs === undefined ? 0 : numPtrs);
+        customType = (customType === undefined ? null : customType);
+
+        return {
+            baseType: baseType,
+            numPtrs: numPtrs,
+            arrayIndexes: [],
+            customType: customType
+        };
+    }
+
     // 创建一个variable，以指定的元素为其内容
     createElementVariable(indexes) {
         if (indexes === undefined) {
@@ -213,6 +225,7 @@ class Variable {
         return theVariable;
     }
 
+    /*
     createDefaultValueVariable() {
         const theType = {
             baseType: this.dataType.baseType,
@@ -224,6 +237,7 @@ class Variable {
         const theVariable = new Variable(theType, null, 0);
         return theVariable;
     }
+    */
 
     // 创建一个指针variable，以指定的元素为其引用
     createElementPtrVariable(indexes) {
@@ -282,7 +296,7 @@ class Variable {
             return false;
         }
 
-        switch (this.dataType.basetype) {
+        switch (this.dataType.baseType) {
             case BaseType.TypeInt:
             case BaseType.TypeShort:
             case BaseType.TypeChar:
@@ -304,7 +318,7 @@ class Variable {
             return false;
         }
 
-        switch (this.dataType.basetype) {
+        switch (this.dataType.baseType) {
             case BaseType.TypeInt:
             case BaseType.TypeShort:
             case BaseType.TypeChar:
@@ -334,13 +348,17 @@ class Variable {
 
     initArrayValue(initValues) {
         for (let i = 0; i < initValues.length; i ++) {
+            /*
             if (initValues[i] === null) {
                 initValues[i] = this.createDefaultValueVariable();
             }
+            */
 
             //this.values[i] = this.checkAndRetrieveAssignValue(initValues[i]);
-            const idx = this.indexFromPosition(i);
-            this.assign(idx, initValues[i]);
+            if (initValues[i] !== null) {
+                const idx = this.indexFromPosition(i);
+                this.assign(idx, initValues[i]);
+            }
         }
         return;
     }
@@ -350,10 +368,14 @@ class Variable {
     }
 
     initDefaultValue() {
-        const values = [];
-        values.length = utils.factorial(...this.dataType.arrayIndexes);
-        values.fill(0);
-        this.values = values;
+        if (this.dataType.arrayIndexes.length !== 0) {
+            const values = [];
+            values.length = utils.factorial(...this.dataType.arrayIndexes);
+            values.fill(0);
+            this.values = values;
+        } else {
+            this.value = 0;
+        }
     }
 
     assignToPtr(indexes, rhs) {

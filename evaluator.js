@@ -78,7 +78,7 @@ class Evaluator {
             platform.programFail(`redeclaration of ${astDecl.ident}`);
         }
 
-        const dataType = this.createDataType(astDecl.dataType.astBaseType,
+        const dataType = Variable.createDataType(astDecl.dataType.astBaseType,
                                                 astDecl.dataType.numPtrs,
                                                 astDecl.dataType.ident);
         for (let idx of astDecl.arrayIndexes) {
@@ -87,25 +87,30 @@ class Evaluator {
 
         // 创建变量
         const variable = new Variable(dataType, astDecl.ident, null);
+        variable.initDefaultValue();
 
         if (astDecl.rhs !== null) {
+            // 数组初始化序列
             if (astDecl.rhs.astType === Ast.AstArrayInitializer) {
-                assert(astDecl.arrayIndexes.length !== 0,
-                                    `internal: evalDeclaration(): NOT an array`);
-
+                // 检查变量是否为数组
+                if (astDecl.arrayIndexes.length === 0) {
+                    platform.programFail(`variable '${astDecl.ident}' is NOT of array type`);
+                }
                 // 将初始化列表展开，并且对元素进行表达式求值
-                let initializer = new ArrayInit(astDecl.arrayIndexes, astDecl.rhs.initValues);
+                let initializer = new ArrayInit(dataType.arrayIndexes, astDecl.rhs.initValues);
                 let initValues = initializer.doInit();
-                initValues.map(this.evalExpression);
+                initValues = initValues.map(this.evalExpression, this);
 
                 // 对数组进行初始化
                 variable.initArrayValue(initValues);
             } else {
+                // 检查变量是否为数组
+                if (astDecl.arrayIndexes.length !== 0) {
+                    platform.programFail(`invalid initializer: variable '${astDecl.ident}' is an array`);
+                }
                 let varRHS = this.evalExpression(astDecl.rhs);
                 variable.initScalarValue(varRHS);
             }
-        } else {
-            variable.initDefaultValue();
         }
 
         // 将变量加入到当前scopes
@@ -500,7 +505,7 @@ class Evaluator {
     } // end of expressionReduceStack
 
     // 对表达式进行求值，返回variable
-    evalExpression(AstExpression, needReturn) {
+    evalExpression(AstExpression) {
         let astExpr = AstExpression;
         let result;
         let expList;
@@ -524,22 +529,20 @@ class Evaluator {
                 expList = this.expressionMap(astExpr.elementList);
                 result = this.expressionReduce(expList);
             }
-            astExpr = astExpr.astNextExpression;
+            astExpr = astExpr.next;
         } while (astExpr !== null);
 
         if (result.astType !== Ast.AstConstant && result.astType !== Ast.AstVariable) {
             assert(false, `internal: evalExpression(): Unexpected astType ${result.astType}`);
         }
 
-        if (needReturn) {
-            if (result.astType === Ast.AstConstant) {
-                result = Variable.createNumericVariable(BaseType.TypeInt, null, result.value);
-            } else if (result.astType === Ast.AstVariable) {
-                result = result.value;
-            }
-
-            return result;
+        if (result.astType === Ast.AstConstant) {
+            result = Variable.createNumericVariable(BaseType.TypeInt, null, result.value);
+        } else if (result.astType === Ast.AstVariable) {
+            result = result.value;
         }
+
+        return result;
     } // end of evalExpression
 
     evalExpressionInt(AstExpression) {
@@ -1063,7 +1066,7 @@ class Evaluator {
         }
 
         // 评估返回类型
-        const returnType = this.createDataType(astFuncDef.returnType.astBaseType,
+        const returnType = Variable.createDataType(astFuncDef.returnType.astBaseType,
                                                astFuncDef.returnType.numPtrs,
                                                astFuncDef.returnType.ident);
         astFuncDef.returnType = returnType;
@@ -1074,7 +1077,7 @@ class Evaluator {
         let paramIndexes;
         let paramVariable;
         for (let param of astFuncDef.params) {
-            paramType = this.createDataType(param.paramType.astBaseType,
+            paramType = Variable.createDataType(param.paramType.astBaseType,
                                                param.paramType.numPtrs,
                                                param.paramType.ident);
             paramIndexes = [];
@@ -1194,9 +1197,18 @@ class Evaluator {
         return retValue;
     }
 
+    evalComposite(astComposite) {
+        for (let astNode of astComposite.astList) {
+            this.evalDispatch(astNode);
+        }
+    }
+
     // 根据AST类型进行分发处理
     evalDispatch(astNode) {
         switch (astNode.astType) {
+            case Ast.AstComposite:
+                this.evalComposite(astNode);
+                break;
             case Ast.AstDeclaration:
                 this.evalDeclaration(astNode);
                 break;
@@ -1266,9 +1278,10 @@ class Evaluator {
 }
 
 const parser = new Parser('./test.c');
+const evaluator = new Evaluator();
 
 let res;
 while ((res = parser.parseStatement()) !== null) {
-    //console.log(res);
     debug.debugShow(res);
+    evaluator.evalDispatch(res); 
 }
