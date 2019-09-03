@@ -435,7 +435,7 @@ class Evaluator {
         let rhs;
         let result = null;
         while (stack.length > 1) {
-            op = stack[-2];
+            op = stack[stack.length-2];
 
             assert(op.astType === Ast.AstOperator);
             if (op.value > basePrio) {
@@ -469,7 +469,7 @@ class Evaluator {
                 case Token.TokenArithmeticExor:
                 case Token.TokenLogicalAnd:
                 case Token.TokenLogicalOr:
-                    result = this.evalBinaryOperator(lhs, rhs, opToken);
+                    result = this.evalBinaryOperator(lhs, rhs, op.token);
                     break;
 
                 /*
@@ -515,11 +515,7 @@ class Evaluator {
             if (astExpr.elementList.length === 1 &&
                   astExpr.elementList[0].astType === Ast.AstAssign) {
                 let astAssign = astExpr.elementList[0];
-                let retVariable = this.evalAssignOperator(astAssign.lhs, astAssign.rhs, astAssign.assignToken);    
-                result = {
-                    astType: Ast.AstVariable,
-                    value: retVariable
-                };
+                result = this.evalAssignOperator(astAssign.lhs, astAssign.rhs, astAssign.assignToken);    
             } else {
                 // 再处理三目运算符
                 while (astExpr.elementList.length === 1 &&
@@ -573,8 +569,6 @@ class Evaluator {
     // 进行单目运算符、函数调用，子表达式的计算
     // 用于规避"||"操作符的"shortcut"特性
     evalUnaryOperator(ast) {
-        let result = ast;
-
         switch (ast.astType) {
             case Ast.AstPrefixOp:
                 if (ast.token === Token.TokenIncrement) {
@@ -597,7 +591,7 @@ class Evaluator {
                 result = this.evalExpression(ast);
                 break;
             default:
-                break;
+                return ast;
         }
 
         return {
@@ -812,7 +806,11 @@ class Evaluator {
         }
 
         if (assignToken === Token.TokenAssign) {
-            return variable.assign(astIdent.accessIndexes, rhs);
+            variable.assign(astIdent.accessIndexes, rhs);
+            return {
+                astType: Ast.AstVariable,
+                value: variable
+            };
         }
         // 除了"="赋值以外，其他赋值类型，如"+=", ">>="等，要求右值必须为数值类型
         if (!rhs.isNumericType()) {
@@ -851,7 +849,10 @@ class Evaluator {
         }
 
         variable.setValue(astIdent.accessIndexes, n, assignToken);
-        return variable;
+        return {
+            astType: Ast.AstVariable,
+            value: variable
+        };
     } // end of evalAssignOperator
 
     evalBlock(astBlock) {
