@@ -515,7 +515,11 @@ class Evaluator {
             if (astExpr.elementList.length === 1 &&
                   astExpr.elementList[0].astType === Ast.AstAssign) {
                 let astAssign = astExpr.elementList[0];
-                result = this.evalAssignOperator(astAssign.lhs,astAssign.rhs, astAssign.assignToken);    
+                let retVariable = this.evalAssignOperator(astAssign.lhs, astAssign.rhs, astAssign.assignToken);    
+                result = {
+                    astType: Ast.AstVariable,
+                    value: retVariable
+                };
             } else {
                 // 再处理三目运算符
                 while (astExpr.elementList.length === 1 &&
@@ -846,7 +850,8 @@ class Evaluator {
                 break;
         }
 
-        return variable.setValue(astIdent.accessIndexes, n, assignToken);
+        variable.setValue(astIdent.accessIndexes, n, assignToken);
+        return variable;
     } // end of evalAssignOperator
 
     evalBlock(astBlock) {
@@ -1285,3 +1290,5 @@ while ((res = parser.parseStatement()) !== null) {
     debug.debugShow(res);
     evaluator.evalDispatch(res); 
 }
+
+debug.dumpScopes(evaluator.scopes);

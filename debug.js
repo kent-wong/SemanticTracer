@@ -29,7 +29,7 @@ function debugShowObject(obj, ident) {
 
         if (k === 'astType') {
             console.log(' '.repeat(ident)+k+':', Ast.getAstName(v) + '(' + v + ')');
-        } else if (k === 'astBaseType') {
+        } else if (k === 'astBaseType' || k === 'baseType') {
             console.log(' '.repeat(ident)+k+':', BaseType.getTypeName(v) + '(' + v + ')');
         } else if (k === 'token') {
             console.log(' '.repeat(ident)+k+':', Token.getTokenName(v) + '(' + v + ')');
@@ -61,6 +61,26 @@ function debugShow(target) {
     }
 }
 
+function dumpScope(scope) {
+    scope.idents.forEach((value, key) => {
+        console.log('*** variable: ' + key + ' ***');
+        debugShow(value);
+    });
+}
+
+function dumpScopes(scopes) {
+    for (let sc of scopes.locals) {
+        console.log(`********  scope: ${Ast.getAstName(sc.tag)}  ********`);
+        dumpScope(sc);
+        console.log();
+    }
+
+    console.log(`********  scope: global  ********`);
+    dumpScope(scopes.global);
+}
+
 module.exports = {
-    debugShow
+    debugShow,
+    dumpScope,
+    dumpScopes
 };

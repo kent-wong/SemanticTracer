@@ -374,7 +374,7 @@ class Variable {
             values.fill(0);
             this.values = values;
         } else {
-            this.value = 0;
+            this.values = 0;
         }
     }
 
