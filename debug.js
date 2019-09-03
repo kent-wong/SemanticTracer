@@ -3,9 +3,9 @@ const BaseType = require('./basetype');
 const Ast = require('./ast');
 
 function debugShowArray(arr, ident) {
-    let first = true;
     let str;
-    for (let v of arr) {
+    for (let i = 0; i < arr.length; i ++) {
+        v = arr[i];
         if (v !== null && typeof v === 'object') {
             console.log(' '.repeat(ident) + '{');
             debugShowObject(v, ident+4);
@@ -13,11 +13,10 @@ function debugShowArray(arr, ident) {
         } else {
             str = ' '.repeat(ident) + v;
         }
-        if (!first) {
+        if (i < arr.length - 1) {
             str += ','
         }
         console.log(str);
-        first = false;
     }
 }
 
