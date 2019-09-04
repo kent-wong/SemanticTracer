@@ -125,7 +125,7 @@ class Evaluator {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
 
-        if (variable.arrayIndexes.length !== 0 && astIdent.arrayIndexes.length === 0) {
+        if (variable.dataType.arrayIndexes.length !== 0 && astIdent.accessIndexes.length === 0) {
             // 数组本身不能进行自增操作
             if (astIdent.token === Token.TokenIncrement) {
                 platform.programFail(`array can not be used as increment operand`);
@@ -150,12 +150,13 @@ class Evaluator {
         }
 
         const delta = (isIncr ? 1 : -1);
+        let tempVariable;
         if (isPostfix) {
-            const tempVariable = variable.createElementVariable(astIdent.accessIndexes);
+            tempVariable = variable.createElementVariable(astIdent.accessIndexes);
             variable.setValueIncr(astIdent.accessIndexes, delta);
         } else {
             variable.setValueIncr(astIdent.accessIndexes, delta);
-            const tempVariable = variable.createElementVariable(astIdent.accessIndexes);
+            tempVariable = variable.createElementVariable(astIdent.accessIndexes);
         }
 
         return tempVariable;
@@ -422,11 +423,17 @@ class Evaluator {
         return stack[0];
     } // end of expressionReduce
 
+    /* 将栈中高于指定优先级的操作符执行相应操作
+     * 主要是二元操作，但是由于"||"操作符的"shortcut"特性，将修改变量的单目操作也放到这里
+     */
     expressionReduceStack(stack, basePrio) {
         assert(stack.length !==0, `internal error: stack.length === 0`);
         assert(stack.length % 2 === 1, `internal error: stack.length is even`);
 
         if (stack.length === 1) {
+            let elem = stack.pop();
+            elem = this.evalUnaryOperator(elem);
+            stack.push(elem);
             return stack;
         }
 
@@ -443,7 +450,6 @@ class Evaluator {
             }
 
             rhs = stack.pop();
-            // 由于"||"操作符的"shortcut"特性，将潜在的修改变量的单目操作挪到这里
             rhs = this.evalUnaryOperator(rhs);
 
             stack.pop();
@@ -569,6 +575,7 @@ class Evaluator {
     // 进行单目运算符、函数调用，子表达式的计算
     // 用于规避"||"操作符的"shortcut"特性
     evalUnaryOperator(ast) {
+        let result = null;
         switch (ast.astType) {
             case Ast.AstPrefixOp:
                 if (ast.token === Token.TokenIncrement) {
@@ -596,11 +603,16 @@ class Evaluator {
 
         return {
             astType: Ast.AstVariable,
-            token: null,
             value: result
         };
     } // end of evalUnaryOperator
 
+    /* 注意：所有eval*Operator函数的返回值都为：
+        return {
+            astType: Ast.AstVariable,
+            value: variable
+        };
+    */
     evalBinaryOperator(lhs, rhs, opToken) {
         let val1;
         let val2;
@@ -755,36 +767,9 @@ class Evaluator {
         const variable = Variable.createNumericVariable(baseType, null, result);
         return {
             astType: Ast.AstVariable,
-            token: null,
             value: variable
         };
     } // end of evalBinaryOperator
-
-    /*
-    // 赋值"x = y"
-    evalAssign(astIdent, astExpression) {
-        let value;
-        const variable = this.getVariable(astIdent.ident);
-        if (variable === null) {
-            platform.programFail(`${astIdent.ident} undeclared`);
-        }
-        // 变量必须是左值
-        if (variable.name === null) {
-            platform.programFail(`lvalue required`);
-        }
-
-        const rhs = this.evalExpression(astExpression);
-        switch (rhs.astType) {
-            case Ast.AstVariable:
-            case Ast.AstConstant:
-                return variable.assignConstant(astIdent.accessIndexes, rhs.value);
-                break;
-            default:
-                assert(false, `internal: evalAssign(): Unexpected astType ${rhs.astType}`);
-                break;
-        }
-    } // end of evalAssign
-    */
 
     evalAssignOperator(astIdent, astExpression, assignToken) {
         let rhs;

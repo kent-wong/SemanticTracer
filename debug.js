@@ -70,13 +70,14 @@ function dumpScope(scope) {
 
 function dumpScopes(scopes) {
     for (let sc of scopes.locals) {
-        console.log(`********  scope: ${Ast.getAstName(sc.tag)}  ********`);
+        console.log(`=============   scope: ${Ast.getAstName(sc.tag)}   =============`);
         dumpScope(sc);
         console.log();
     }
 
-    console.log(`********  scope: global  ********`);
+    console.log(`=============   scope: global   =============`);
     dumpScope(scopes.global);
+    console.log();
 }
 
 module.exports = {
