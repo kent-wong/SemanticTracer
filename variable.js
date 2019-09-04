@@ -219,25 +219,21 @@ class Variable {
             customType: this.dataType.customType
         };
 
+        // 如果本变量是数组，并且指定的索引维度小于本数组维度，
+        // 那么返回指针类型
+        if (indexes.length < this.dataType.arrayIndexes.length) {
+            let delta = this.dataType.arrayIndexes.length - indexes.length;
+            for (let i = 0; i < delta; i ++) {
+                indexes.push(0);
+            }
+            return this.createElementPtrVariable(indexes);
+        }
+
         const theValue = this.getValue(indexes);
         const theVariable = new Variable(theType, null, theValue);
 
         return theVariable;
     }
-
-    /*
-    createDefaultValueVariable() {
-        const theType = {
-            baseType: this.dataType.baseType,
-            numPtrs: this.dataType.numPtrs,
-            arrayIndexes: [],
-            customType: this.dataType.customType
-        };
-
-        const theVariable = new Variable(theType, null, 0);
-        return theVariable;
-    }
-    */
 
     // 创建一个指针variable，以指定的元素为其引用
     createElementPtrVariable(indexes) {
@@ -384,19 +380,23 @@ class Variable {
             if (n !== 0) {
                 platform.programFail(`Semantic error: it is *NOT* safe to assign a non-zero number to a pointer`);
             }
-            this.setValue(indexes, null);
+            this.setValue(indexes, 0);
+            return this;
         }
 
         let targetPtrs = rhs.dataType.numPtrs;
+        /*
         if (rhs.isArrayType()) {
-            targetPtrs ++;
+            targetPtrs += rhs.dataType.arrayIndexes.length;
         }
+        */
 
         if (this.dataType.baseType !== rhs.dataType.baseType ||
               this.dataType.numPtrs !== targetPtrs) {
             platform.programFail(`incompatible pointer type`);
         }
 
+        /*
         // for array type variable, a pointer referrences its first element
         if (rhs.isArrayType()) {
             const accessIndexes = [];
@@ -408,8 +408,12 @@ class Variable {
             let value = rhs.getValue();
             this.setValue(indexes, value);
         }
+        */
 
-        return this.createElementVariable(indexes);
+        let value = rhs.getValue();
+        this.setValue(indexes, value);
+        return this;
+        //return this.createElementVariable(indexes);
     } // end of assignToPtr
 
     totalElements() {
@@ -522,11 +526,11 @@ class Variable {
             return this.assignToPtr(indexes, rhs);
         } else {
             if (rhs.isPtrType()) {
-                platform.programFail(`Can Not assign a pointer to ${this.getTypeName()}`);
+                platform.programFail(`Can Not assign a pointer to ${BaseType.getTypeName(this.dataType.baseType)}`);
             }
             
             if (rhs.isArrayType()) {
-                platform.programFail(`Can Not assign an array to ${this.getTypeName()}`);
+                platform.programFail(`Can Not assign an array to ${BaseType.getTypeName(this.dataType.baseType)}`);
             }
 
             if (rhs.isNumericType()) {

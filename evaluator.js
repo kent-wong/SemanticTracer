@@ -262,6 +262,8 @@ class Evaluator {
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
+
+        astIdent.accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
         return variable.createElementVariable(astIdent.accessIndexes);
     }
 

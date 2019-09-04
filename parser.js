@@ -473,7 +473,7 @@ class Parser {
             // 处理数组下标
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
-                astIdent.arrayIndexes.push(astIndex);
+                astIdent.accessIndexes.push(astIndex);
                 this.getToken();
             }
 
