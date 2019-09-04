@@ -219,8 +219,21 @@ class Variable {
             customType: this.dataType.customType
         };
 
+        // 索引维度和变量维度相等，返回元素值
+        if (indexes.length === this.dataType.arrayIndexes.length) {
+            const theValue = this.getValue(indexes);
+            const theVariable = new Variable(theType, null, theValue);
+            return theVariable;
+        }
+
+
         // 如果本变量是数组，并且指定的索引维度小于本数组维度，
-        // 那么返回指针类型
+        // 那么返回指针类型。计算原则如下：
+        //      int *p;
+        //      int array[2][3];
+        //      p = array       --->  p = &array[0][0]
+        //      p = array[0]    --->  p = &array[0][0]
+        //      p = array[1]    --->  p = &array[1][0]
         if (indexes.length < this.dataType.arrayIndexes.length) {
             let delta = this.dataType.arrayIndexes.length - indexes.length;
             for (let i = 0; i < delta; i ++) {
@@ -229,10 +242,15 @@ class Variable {
             return this.createElementPtrVariable(indexes);
         }
 
-        const theValue = this.getValue(indexes);
-        const theVariable = new Variable(theType, null, theValue);
+        // 指定的索引维度大于本变量的数组维度
+        // 本变量必须是指针，并且以指针为基础的索引必须是一维的
+        let delta = indexes.length - this.dataType.arrayIndexes.length;
+        if (!this.isPtrType() || delta !== 1) {
+            platform.programFail(`subscripted value is neither array nor pointer`);
+        }
 
-        return theVariable;
+        const truncatedIndexes = indexes.slice(0, this.dataType.arrayIndexes.length);
+        return this.handlePtrChange(truncatedIndexes, indexes.pop(), Token.TokenAddAssign);
     }
 
     // 创建一个指针variable，以指定的元素为其引用
@@ -261,7 +279,10 @@ class Variable {
 
     // 创建别名，别名和原变量引用同样的数据
     // 别名主要用于在函数调用时用实参数组替换形参数组
+    // 对于非数组变量，创建别名相当于clone
     createAlias(aliasName) {
+        aliasName = (aliasName === undefined ? null : aliasName);
+
         const theType = {
             baseType: this.dataType.baseType,
             numPtrs: this.dataType.numPtrs,
@@ -473,7 +494,7 @@ class Variable {
         let accessPosition = 0;
         const calcList = [];
         for (let i = 0; i < refValue.indexes.length; i ++) {
-            let multi = this._factorial(refValue.refTo.dataType.arrayIndexes.slice(i+1));
+            let multi = utils.factorial(refValue.refTo.dataType.arrayIndexes.slice(i+1));
             calcList.push(multi);
             accessPosition += refValue.indexes[i] * multi;
         }
