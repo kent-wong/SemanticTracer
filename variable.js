@@ -58,7 +58,7 @@ class Variable {
 
     // 赋值
     // 注意：此函数不对赋值操作合法性进行检查，调用者需要保证操作的合法性
-    setValue(indexes, value, opToken) {
+    setValue(indexes, values, opToken) {
         if (opToken === undefined) {
             opToken = Token.TokenAssign;
         }
@@ -69,48 +69,48 @@ class Variable {
         if (!this.isArrayType()) {
             switch (opToken) {
                 case Token.TokenAssign:
-                    this.values = value;
+                    this.values = values;
                     break;
                 case Token.TokenMinus:
-                    this.values = -this.value;
+                    this.values = -this.values;
                     break;
                 case Token.TokenUnaryNot:
-                    this.values = !this.value;
+                    this.values = !this.values;
                     break;
                 case Token.TokenUnaryExor:
-                    this.values = ~this.value;
+                    this.values = ~this.values;
                     break;
                 case Token.TokenIncrement:
                 case Token.TokenAddAssign:
-                    this.values += value;
+                    this.values += values;
                     break;
                 case Token.TokenDecrement:
                 case Token.TokenSubtractAssign:
-                    this.values -= value;
+                    this.values -= values;
                     break;
                 case Token.TokenMultiplyAssign:
-                    this.values *= value;
+                    this.values *= values;
                     break;
                 case Token.TokenDivideAssign:
-                    this.values /= value;
+                    this.values /= values;
                     break;
                 case Token.TokenModulusAssign:
-                    this.values %= value;
+                    this.values %= values;
                     break;
                 case Token.TokenShiftLeftAssign:
-                    this.values <<= value;
+                    this.values <<= values;
                     break;
                 case Token.TokenShiftRightAssign:
-                    this.values >>= value;
+                    this.values >>= values;
                     break;
                 case Token.TokenArithmeticAndAssign:
-                    this.values &= value;
+                    this.values &= values;
                     break;
                 case Token.TokenArithmeticOrAssign:
-                    this.values |= value;
+                    this.values |= values;
                     break;
                 case Token.TokenArithmeticExorAssign:
-                    this.values ^= value;
+                    this.values ^= values;
                     break;
                 default:
                     assert(false, `Unrecognized operator token ${opToken}`);
@@ -123,48 +123,48 @@ class Variable {
         const position = this.positionFromIndex(indexes);
         switch (opToken) {
             case Token.TokenAssign:
-                this.values[position] = value;
+                this.values[position] = values;
                 break;
             case Token.TokenMinus:
-                this.values[position] = -this.value;
+                this.values[position] = -this.values;
                 break;
             case Token.TokenUnaryNot:
-                this.values[position] = !this.value;
+                this.values[position] = !this.values;
                 break;
             case Token.TokenUnaryExor:
-                this.values[position] = ~this.value;
+                this.values[position] = ~this.values;
                 break;
             case Token.TokenIncrement:
             case Token.TokenAddAssign:
-                this.values[position] += value;
+                this.values[position] += values;
                 break;
             case Token.TokenDecrement:
             case Token.TokenSubtractAssign:
-                this.values[position] -= value;
+                this.values[position] -= values;
                 break;
             case Token.TokenMultiplyAssign:
-                this.values[position] *= value;
+                this.values[position] *= values;
                 break;
             case Token.TokenDivideAssign:
-                this.values[position] /= value;
+                this.values[position] /= values;
                 break;
             case Token.TokenModulusAssign:
-                this.values[position] %= value;
+                this.values[position] %= values;
                 break;
             case Token.TokenShiftLeftAssign:
-                this.values[position] <<= value;
+                this.values[position] <<= values;
                 break;
             case Token.TokenShiftRightAssign:
-                this.values[position] >>= value;
+                this.values[position] >>= values;
                 break;
             case Token.TokenArithmeticAndAssign:
-                this.values[position] &= value;
+                this.values[position] &= values;
                 break;
             case Token.TokenArithmeticOrAssign:
-                this.values[position] |= value;
+                this.values[position] |= values;
                 break;
             case Token.TokenArithmeticExorAssign:
-                this.values[position] ^= value;
+                this.values[position] ^= values;
                 break;
             default:
                 assert(false, `Unrecognized operator token ${opToken}`);
@@ -182,7 +182,7 @@ class Variable {
         this.setValue(indexes, value, Token.TokenDecrement);
     }
 
-    setValueMinus(indexes, value) {
+    setValueUMinus(indexes, value) {
         this.setValue(indexes, value, Token.TokenMinus);
     }
 
@@ -206,17 +206,17 @@ class Variable {
         };
     }
 
-    takeAddress(indexes) {
+    createElementAddressVariable(indexes) {
         indexes = (indexes === undefined ? null : indexes);
 
         // 索引维度和变量维度相等，返回指向变量(的元素)的指针
         if (indexes.length === this.dataType.arrayIndexes.length) {
-            return this.createElementPtrVariable(indexes);
+            return this.createElementPointerVariable(indexes);
         } else if (indexes.length < this.dataType.arrayIndexes.length) {
             const newIndexes = indexes.slice();
             newIndexes.length = this.dataType.arrayIndexes.length;
             newIndexes.fill(0, indexes.length);
-            return this.createElementPtrVariable(newIndexes);
+            return this.createElementPointerVariable(newIndexes);
         } else {
             // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
             let delta = indexes.length - this.dataType.arrayIndexes.length;
@@ -230,7 +230,7 @@ class Variable {
                 platform.programFail(`referrence to null pointer`);
             }
             const newIndexes = this.ptrNewIndexes(refValue, indexes.pop());
-            return refValue.refTo.createElementPtrVariable(newIndexes);
+            return refValue.refTo.createElementPointerVariable(newIndexes);
         }
     }
 
@@ -263,7 +263,7 @@ class Variable {
             const newIndexes = indexes.slice();
             newIndexes.length = this.dataType.arrayIndexes.length;
             newIndexes.fill(0, indexes.length);
-            return this.createElementPtrVariable(newIndexes);
+            return this.createElementPointerVariable(newIndexes);
         }
 
         // 指定的索引维度大于本变量的数组维度
@@ -284,7 +284,7 @@ class Variable {
     }
 
     // 创建一个指针variable，以指定的元素为其引用
-    createElementPtrVariable(indexes) {
+    createElementPointerVariable(indexes) {
         if (indexes === undefined) {
             indexes = [];
         }

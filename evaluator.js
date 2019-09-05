@@ -204,12 +204,8 @@ class Evaluator {
         }
 
         const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-        console.log('accessIndexes:', accessIndexes);
-        return variable.takeAddress(accessIndexes);
-        /*
-        variable.checkAccessIndexes(astIdent.accessIndexes);
-        return variable.createElementPtrVariable(astIdent.accessIndexes);
-        */
+        //console.log('accessIndexes:', accessIndexes);
+        return variable.createElementAddressVariable(accessIndexes);
     }
 
     evalTakeValue(astTakeValue) {
@@ -225,15 +221,16 @@ class Evaluator {
         }
 
         const ptr = variable.getValue(astIdent.accessIndexes);
-        if (ptr === null) {
-            return null;
+        if (ptr === 0) {
+            platform.programFail(`dereferrence to a NULL pointer`);
         }
 
         return ptr.refTo.createElementVariable(ptr.indexes);
     }
 
-    evalTakeUMinus(astMinus) {
-        const astIdent = astMinus.astIdent;
+    /*
+    evalUnaryUnchangedOperator(astNode, opToken) {
+        const astIdent = astNode.astIdent;
         let baseType = BaseType.TypeInt;
         let val;
 
@@ -244,28 +241,67 @@ class Evaluator {
             }
             baseType = astIdent.value.dataType.baseType;
         } else if (astIdent.astType === Ast.AstConstant) {
-            if (astIdent.token !== Token.TokenIntegerConstant && astIdent.token !== Token.TokenFPConstant) {
+            if (astIdent.token !== Token.TokenIntegerConstant &&
+                  astIdent.token !== Token.TokenFPConstant) {
                 platform.programFail(`expect a numeric constant or value`);
             }
             val = astIdent.value;
         }
 
         return Variable.createNumericVariable(baseType, null, -val);
-        /*
-        variable.setValueMinus(null, astIdent.accessIndexes);
-        return variable.createElementVariable(astIdent.accessIndexes);
-        */
+    }
+    */
+
+    evalTakeUMinus(astMinus) {
+        const astIdent = astMinus.astIdent;
+        let variable;
+
+        if (astIdent.astType === Ast.AstIdentifier) {
+            variable = this.getVariable(astIdent.ident);
+            if (variable === null) {
+                platform.programFail(`${astIdent.ident} undeclared`);
+            }
+
+            const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
+            variable = variable.createElementVariable(accessIndexes);
+            if (!variable.isNumericType()) {
+                platform.programFail(`wrong type argument to unary minus`);
+            }
+            variable.setValueUMinus();
+        } else if (astIdent.astType === Ast.AstConstant) {
+            if (astIdent.token !== Token.TokenIntegerConstant &&
+                  astIdent.token !== Token.TokenFPConstant) {
+                platform.programFail(`expect a numeric constant or value`);
+            }
+            variable = Variable.createNumericVariable(BaseType.TypeInt, null, -astIdent.value);
+        }
+
+        return variable;
     }
 
     evalTakeNot(astNot) {
         const astIdent = astNot.astIdent;
-        const variable = this.getVariable(astIdent.ident);
-        if (variable === null) {
-            platform.programFail(`${astIdent.ident} undeclared`);
+        let variable;
+        let val;
+
+        if (astIdent.astType === Ast.AstIdentifier) {
+            variable = this.getVariable(astIdent.ident);
+            if (variable === null) {
+                platform.programFail(`${astIdent.ident} undeclared`);
+            }
+
+            const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
+            variable = variable.createElementVariable(accessIndexes);
+            val = variable.getValue();
+        } else if (astIdent.astType === Ast.AstConstant) {
+            if (astIdent.token !== Token.TokenIntegerConstant &&
+                  astIdent.token !== Token.TokenFPConstant) {
+                platform.programFail(`expect a numeric constant or value`);
+            }
+            val = astIdent.value;
         }
 
-        variable.setValueNot(null, astIdent.accessIndexes);
-        return variable.createElementVariable(astIdent.accessIndexes);
+        return Variable.createNumericVariable(BaseType.TypeInt, null, !val);
     }
 
     evalTakeExor(astExor) {
