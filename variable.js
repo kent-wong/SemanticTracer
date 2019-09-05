@@ -212,20 +212,19 @@ class Variable {
             indexes = [];
         }
 
-        const theType = {
-            baseType: this.dataType.baseType,
-            numPtrs: this.dataType.numPtrs,
-            arrayIndexes: [],
-            customType: this.dataType.customType
-        };
-
         // 索引维度和变量维度相等，返回元素值
         if (indexes.length === this.dataType.arrayIndexes.length) {
+            const theType = {
+                baseType: this.dataType.baseType,
+                numPtrs: this.dataType.numPtrs,
+                arrayIndexes: [],
+                customType: this.dataType.customType
+            };
+
             const theValue = this.getValue(indexes);
             const theVariable = new Variable(theType, null, theValue);
             return theVariable;
         }
-
 
         // 如果本变量是数组，并且指定的索引维度小于本数组维度，
         // 那么返回指针类型。计算原则如下：
@@ -243,14 +242,20 @@ class Variable {
         }
 
         // 指定的索引维度大于本变量的数组维度
-        // 本变量必须是指针，并且以指针为基础的索引必须是一维的
+        // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
         let delta = indexes.length - this.dataType.arrayIndexes.length;
         if (!this.isPtrType() || delta !== 1) {
             platform.programFail(`subscripted value is neither array nor pointer`);
         }
 
         const truncatedIndexes = indexes.slice(0, this.dataType.arrayIndexes.length);
-        return this.handlePtrChange(truncatedIndexes, indexes.pop(), Token.TokenAddAssign);
+        const refValue = this.getValue(truncatedIndexes);
+        if (refValue === 0) {
+            platform.programFail(`referrence to null pointer`);
+        }
+
+        const newIndexes = this.ptrNewIndexes(refValue, indexes.pop());
+        return refValue.refTo.createElementVariable(newIndexes);
     }
 
     // 创建一个指针variable，以指定的元素为其引用
@@ -471,15 +476,53 @@ class Variable {
         return indexes;
     }
 
+    ptrNewIndexes(refValue, n) {
+        if (!refValue || refValue.refTo.dataType.arrayIndexes.length === 0) {
+            assert(false, `internal: ptrRefCalc(): invalid input parameter`);
+        }
+
+        // 计算出数组的全部元素数目
+        const numTotalElements = refValue.refTo.totalElements();
+
+        // 计算出指针当前指向的元素位置
+        let newPosition = 0;
+        let multi;
+        const calcList = [];
+        for (let i = 0; i < refValue.indexes.length; i ++) {
+            multi = utils.factorial(...refValue.refTo.dataType.arrayIndexes.slice(i+1));
+            calcList.push(multi);
+            newPosition += refValue.indexes[i] * multi;
+        }
+
+        // 计算新位置
+        newPosition += n;
+
+        if (newPosition >= numTotalElements) {
+            platform.programFail(`semantic error: increase pointer by ${n} will overflow the array boundary`);
+        }
+        if (newPosition < 0) {
+            platform.programFail(`semantic error: decrease pointer by ${n} will underflow the array boundary`);
+        }
+
+        // 计算新的索引
+        const newIndexes = refValue.indexes.slice();
+        for (let i = 0; i < refValue.indexes.length; i ++) {
+            newIndexes[i] = newPosition / calcList[i];
+            newPosition %= calcList[i];
+        }
+
+        return newIndexes;
+    }
+
     handlePtrChange(indexes, n, opToken) {
         if (n === 0) {
-            return this.createElementVariable(indexes);
+            return this;
         }
 
         const refValue = this.getValue(indexes);
-        if (refValue === null) {
+        if (refValue === null || refValue === 0) {
             // 指针为null，不允许给指针指定非0值
-            platform.programFail(`invalid RHS numeric value for pointer type except NULL(0)`);
+            platform.programFail(`can NOT assign numeric value to pointer except NULL(0)`);
         }
 
         // 如果指针指向的目标不是数组，不允许改变指针的值
@@ -487,47 +530,24 @@ class Variable {
             platform.programFail(`semantic error: attempts redirecting pointer to point to unknown place`);
         }
 
-        // 计算出数组的全部元素数目
-        const numTotalElements = refValue.refTo.totalElements();
-
-        // 计算出指针当前指向的元素位置
-        let accessPosition = 0;
-        const calcList = [];
-        for (let i = 0; i < refValue.indexes.length; i ++) {
-            let multi = utils.factorial(refValue.refTo.dataType.arrayIndexes.slice(i+1));
-            calcList.push(multi);
-            accessPosition += refValue.indexes[i] * multi;
-        }
-
+        let newIndexes;
         switch (opToken) {
             case Token.TokenAddAssign:
             case Token.TokenIncrement:
-                if (accessPosition + n >= numTotalElements) {
-                    platform.programFail(`semantic error:
-                                    increase pointer by ${n} will overflow the array boundary`);
-                }
-                accessPosition += n;
+                refValue.indexes = this.ptrNewIndexes(refValue, n);
                 break;
             case Token.TokenSubtractAssign:
             case Token.TokenDecrement:
-                if (accessPosition - n < 0) {
-                    platform.programFail(`semantic error:
-                                    decrease pointer by ${n} will underflow the array boundary`);
-                }
-                accessPosition -= n;
+                refValue.indexes = this.ptrNewIndexes(refValue, -n);
                 break;
             default:
                 assert(false, `internal: handlePtrChange(): unexpected operator token ${opToken}`);
                 break;
         }
 
-        // 改变指针指向的元素位置
-        for (let i = 0; i < refValue.indexes.length; i ++) {
-            refValue.indexes[i] = accessPosition / calcList[i];
-            accessPosition %= calcList[i];
-        }
 
-        return this.createElementVariable(indexes);
+        return this;
+        //return this.createElementVariable(indexes);
     } // end of handlePtrChange
 
     assignNumeric(indexes, rhs) {

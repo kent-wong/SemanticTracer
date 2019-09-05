@@ -815,7 +815,11 @@ class Evaluator {
             case Token.TokenAddAssign:
             case Token.TokenSubtractAssign:
                 if (variable.isPtrType()) {
-                    return variable.handlePtrChange(astIdent.accessIndexes, n, assignToken);
+                    variable.handlePtrChange(astIdent.accessIndexes, n, assignToken);
+                    return {
+                        astType: Ast.AstVariable,
+                        value: variable
+                    };
                 }
             case Token.TokenMultiplyAssign:
             case Token.TokenDivideAssign:
