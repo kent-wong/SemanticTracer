@@ -99,7 +99,7 @@ class Evaluator {
                 // 将初始化列表展开，并且对元素进行表达式求值
                 let initializer = new ArrayInit(dataType.arrayIndexes, astDecl.rhs.initValues);
                 let initValues = initializer.doInit();
-                initValues = initValues.map(this.evalExpression, this);
+                initValues = initValues.map((v) => v === null ? null : this.evalExpression(v), this);
 
                 // 对数组进行初始化
                 variable.initArrayValue(initValues);

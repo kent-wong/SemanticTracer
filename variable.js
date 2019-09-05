@@ -468,7 +468,7 @@ class Variable {
         const expansionPoints = utils.expansionPoints(this.dataType.arrayIndexes); 
 
         for (let e of expansionPoints) {
-            indexes.push(pos/e);
+            indexes.push(Math.floor(pos/e));
             pos = pos % e;
         }
         indexes.push(pos);
@@ -507,7 +507,7 @@ class Variable {
         // 计算新的索引
         const newIndexes = refValue.indexes.slice();
         for (let i = 0; i < refValue.indexes.length; i ++) {
-            newIndexes[i] = newPosition / calcList[i];
+            newIndexes[i] = Math.floor(newPosition / calcList[i]);
             newPosition %= calcList[i];
         }
 
