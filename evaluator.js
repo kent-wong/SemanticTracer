@@ -81,9 +81,12 @@ class Evaluator {
         const dataType = Variable.createDataType(astDecl.dataType.astBaseType,
                                                 astDecl.dataType.numPtrs,
                                                 astDecl.dataType.ident);
+        dataType.arrayIndexes = astDecl.arrayIndexes.map(this.evalExpressionInt, this);
+        /*
         for (let idx of astDecl.arrayIndexes) {
             dataType.arrayIndexes.push(this.evalExpressionInt(idx));
         }
+        */
 
         // 创建变量
         const variable = new Variable(dataType, astDecl.ident, null);
@@ -200,8 +203,13 @@ class Evaluator {
             platform.programFail(`lvalue required`);
         }
 
+        const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
+        console.log('accessIndexes:', accessIndexes);
+        return variable.takeAddress(accessIndexes);
+        /*
         variable.checkAccessIndexes(astIdent.accessIndexes);
         return variable.createElementPtrVariable(astIdent.accessIndexes);
+        */
     }
 
     evalTakeValue(astTakeValue) {

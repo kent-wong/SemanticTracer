@@ -206,11 +206,37 @@ class Variable {
         };
     }
 
+    takeAddress(indexes) {
+        indexes = (indexes === undefined ? null : indexes);
+
+        // 索引维度和变量维度相等，返回指向变量(的元素)的指针
+        if (indexes.length === this.dataType.arrayIndexes.length) {
+            return this.createElementPtrVariable(indexes);
+        } else if (indexes.length < this.dataType.arrayIndexes.length) {
+            const newIndexes = indexes.slice();
+            newIndexes.length = this.dataType.arrayIndexes.length;
+            newIndexes.fill(0, indexes.length);
+            return this.createElementPtrVariable(newIndexes);
+        } else {
+            // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
+            let delta = indexes.length - this.dataType.arrayIndexes.length;
+            if (!this.isPtrType() || delta !== 1) {
+                platform.programFail(`subscripted value is neither array nor pointer`);
+            }
+
+            const truncatedIndexes = indexes.slice(0, this.dataType.arrayIndexes.length);
+            const refValue = this.getValue(truncatedIndexes);
+            if (refValue === 0) {
+                platform.programFail(`referrence to null pointer`);
+            }
+            const newIndexes = this.ptrNewIndexes(refValue, indexes.pop());
+            return refValue.refTo.createElementPtrVariable(newIndexes);
+        }
+    }
+
     // 创建一个variable，以指定的元素为其内容
     createElementVariable(indexes) {
-        if (indexes === undefined) {
-            indexes = [];
-        }
+        indexes = (indexes === undefined ? null : indexes);
 
         // 索引维度和变量维度相等，返回元素值
         if (indexes.length === this.dataType.arrayIndexes.length) {
@@ -234,11 +260,10 @@ class Variable {
         //      p = array[0]    --->  p = &array[0][0]
         //      p = array[1]    --->  p = &array[1][0]
         if (indexes.length < this.dataType.arrayIndexes.length) {
-            let delta = this.dataType.arrayIndexes.length - indexes.length;
-            for (let i = 0; i < delta; i ++) {
-                indexes.push(0);
-            }
-            return this.createElementPtrVariable(indexes);
+            const newIndexes = indexes.slice();
+            newIndexes.length = this.dataType.arrayIndexes.length;
+            newIndexes.fill(0, indexes.length);
+            return this.createElementPtrVariable(newIndexes);
         }
 
         // 指定的索引维度大于本变量的数组维度
