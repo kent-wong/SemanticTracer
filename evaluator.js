@@ -234,13 +234,27 @@ class Evaluator {
 
     evalTakeUMinus(astMinus) {
         const astIdent = astMinus.astIdent;
-        const variable = this.getVariable(astIdent.ident);
-        if (variable === null) {
-            platform.programFail(`${astIdent.ident} undeclared`);
+        let baseType = BaseType.TypeInt;
+        let val;
+
+        if (astIdent.astType === Ast.AstVariable) {
+            val = astIdent.value.getNumericValue();
+            if (val === null) {
+                platform.programFail(`wrong type argument to unary minus`);
+            }
+            baseType = astIdent.value.dataType.baseType;
+        } else if (astIdent.astType === Ast.AstConstant) {
+            if (astIdent.token !== Token.TokenIntegerConstant && astIdent.token !== Token.TokenFPConstant) {
+                platform.programFail(`expect a numeric constant or value`);
+            }
+            val = astIdent.value;
         }
 
+        return Variable.createNumericVariable(baseType, null, -val);
+        /*
         variable.setValueMinus(null, astIdent.accessIndexes);
         return variable.createElementVariable(astIdent.accessIndexes);
+        */
     }
 
     evalTakeNot(astNot) {
@@ -857,7 +871,7 @@ class Evaluator {
     evalBlock(astBlock) {
         this.scopes.pushScope(Ast.AstBlock);
         for (let statement of astBlock.statements) {
-            evalDispatch(statement);
+            this.evalDispatch(statement);
 
             // 判断执行的语句是否为continue, break, return
             if (__controlStatus === ControlStatus.CONTINUE) {
