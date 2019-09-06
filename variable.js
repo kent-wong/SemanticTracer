@@ -234,7 +234,7 @@ class Variable {
         }
     }
 
-    getLValue(indexes, autoFillIndexes) {
+    getLValue(indexes, autoFillIndexes, noFillMsg) {
         indexes = (indexes === undefined ? [] : indexes);
         autoFillIndexes = (autoFillIndexes === undefined ? false : autoFillIndexes);
 
@@ -242,7 +242,11 @@ class Variable {
         let newIndexes = indexes;
 
         if (indexes.length < this.dataType.arrayIndexes.length && !autoFillIndexes) {
-            return null;
+            if (noFillMsg) {
+                platform.programFail(noFillMsg);
+            } else {
+                platform.programFail(`lvalue required`);
+            }
         }
 
         if (indexes.length === this.dataType.arrayIndexes.length) {
@@ -275,7 +279,7 @@ class Variable {
 
         return {
             variable: variable,
-            indexes: newIndexes
+            accessIndexes: newIndexes
         };
     }
 
@@ -370,42 +374,35 @@ class Variable {
         return theVariable;
     } // end of createArrayPtrVariable()
 
-    isPtrType() {
-        return this.dataType.numPtrs !== 0;
-    }
-
     isArrayType() {
         return this.dataType.arrayIndexes.length !== 0;
     }
 
-    isNumericType() {
+    isPtrType(allowArray) {
+        allowArray = (allowArray === undefined ? true : allowArray);
+
+        if (this.isArrayType() && !allowArray) {
+            return false;
+        }
+        return this.dataType.numPtrs !== 0;
+    }
+
+    isPtrTypeNonArray() {
+        return this.isPtrType(false);
+    }
+
+    isNumericType(allowArray) {
+        allowArray = (allowArray === undefined ? true : allowArray);
+
+        if (this.isArrayType() && !allowArray) {
+            return false;
+        }
+
         if (this.dataType.customType !== null) {
             // todo: 如果是typedef int sometype; 那么应该返回true
             return false;
         }
 
-        if (this.isArrayType() || this.isPtrType()) {
-            return false;
-        }
-
-        switch (this.dataType.baseType) {
-            case BaseType.TypeInt:
-            case BaseType.TypeShort:
-            case BaseType.TypeChar:
-            case BaseType.TypeLong:
-            case BaseType.TypeUnsignedInt:
-            case BaseType.TypeUnsignedShort:
-            case BaseType.TypeUnsignedChar:
-            case BaseType.TypeUnsignedLong:
-            case BaseType.TypeFP:
-                return true;
-        }
-
-        return false; // todo
-    }
-
-    // 判断此变量的元素是否为数值类型
-    isNumericElement() {
         if (this.isPtrType()) {
             return false;
         }
@@ -426,16 +423,8 @@ class Variable {
         return false; // todo
     }
 
-    getNumericValue() {
-        if (!this.isNumericType()) {
-            return null;
-        }
-
-        if (this.dataType.numPtrs !== 0 || this.dataType.arrayIndexes.length !== 0) {
-            return null;
-        }
-
-        return this.values;
+    isNumericTypeNonArray() {
+        return this.isNumericType(false);
     }
 
     initArrayValue(initValues) {
@@ -602,7 +591,6 @@ class Variable {
             platform.programFail(`semantic error: attempts redirecting pointer to point to unknown place`);
         }
 
-        let newIndexes;
         switch (opToken) {
             case Token.TokenAddAssign:
             case Token.TokenIncrement:
@@ -619,7 +607,6 @@ class Variable {
 
 
         return this;
-        //return this.createElementVariable(indexes);
     } // end of handlePtrChange
 
     assignNumeric(indexes, rhs) {

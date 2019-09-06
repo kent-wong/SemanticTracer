@@ -123,7 +123,8 @@ class Evaluator {
     // 处理自增/自减运算
     evalSelfOp(astIdent, isPostfix, isIncr) {
         let variable;
-        const delta = (isIncr ? 1 : -1);
+        let varResult;
+        const n = (isIncr ? 1 : -1);
 
         variable = this.getVariable(astIdent.ident);
         if (variable === null) {
@@ -131,60 +132,27 @@ class Evaluator {
         }
 
         const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-        variable = variable.createElementVariable(accessIndexes);
-        if (!variable.isNumericType()) {
-            platform.programFail(`wrong type argument to unary minus`);
-        }
-        variable.setValueUMinus();
-
-        return variable;
-
-
-
-
-        /* 
-        // 通过AST获取变量，此变量必须存在于当前有效的scopes中
-        const variable = this.getVariable(astIdent.ident);
-        if (variable === null) {
-            platform.programFail(`${astIdent.ident} undeclared`);
-        }
-
-        if (variable.dataType.arrayIndexes.length !== 0 && astIdent.accessIndexes.length === 0) {
-            // 数组本身不能进行自增操作
-            if (astIdent.token === Token.TokenIncrement) {
-                platform.programFail(`array can not be used as increment operand`);
+        ({variable, accessIndexes} = variable.getLValue(accessIndexes));
+        if (variable.isPtrType()) {
+            variable.handlePtrChange(accessIndexes, n, Token.TokenIncrement);
+            varResult = variable.createElementVariable(accessIndexes);
+        } else if (variable.isNumericType()) {
+            if (isPostfix) {
+                varResult = variable.createElementVariable(accessIndexes);
+                variable.setValueIncr(accessIndexes, n);
             } else {
-                platform.programFail(`array can not be used as decrement operand`);
+                variable.setValueIncr(accessIndexes, n);
+                varResult = variable.createElementVariable(accessIndexes);
             }
-        }
-
-        // 检查++/--操作能否在此variable或其元素上进行
-        const ok = variable.isNumericType();
-        if (!ok) {
-            if (astIdent.token === Token.TokenIncrement) {
-                platform.programFail(`wrong type argument to increment`);
-            } else {
-                platform.programFail(`wrong type argument to decrement`);
-            }
-        }
-
-        // 变量必须是左值
-        if (variable.ident === null) {
-            platform.programFail(`lvalue required`);
-        }
-
-        const delta = (isIncr ? 1 : -1);
-        let tempVariable;
-        if (isPostfix) {
-            tempVariable = variable.createElementVariable(astIdent.accessIndexes);
-            variable.setValueIncr(astIdent.accessIndexes, delta);
         } else {
-            variable.setValueIncr(astIdent.accessIndexes, delta);
-            tempVariable = variable.createElementVariable(astIdent.accessIndexes);
+            if (isIncr) {
+                platform.programFail(`wrong type argument to increment operand`);
+            } else {
+                platform.programFail(`wrong type argument to decrement operand`);
+            }
         }
 
-        return tempVariable;
-        */
+        return varResult;
     }
 
     evalPostfixIncr(astIdent) {
@@ -626,23 +594,22 @@ class Evaluator {
 
     evalExpressionInt(AstExpression) {
         const result = this.evalExpression(AstExpression);
-        const value = result.getNumericValue();
 
-        if (value === null) {
+        if (!result.isNumericTypeNonArray()) {
             platform.programFail('not a numeric expression');
         }
 
-        return value;
+        return result.getValue();
     }
+
     evalExpressionBoolean(AstExpression) {
         const result = this.evalExpression(AstExpression);
-        const value = result.getNumericValue();
 
-        if (value === null) {
+        if (!result.isNumericTypeNonArray()) {
             platform.programFail('expression can NOT be evaluated to boolean');
         }
 
-        return (value !== 0);
+        return result.getValue() !== 0;
     }
 
     // 进行单目运算符、函数调用，子表达式的计算
