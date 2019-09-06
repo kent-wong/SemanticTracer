@@ -658,7 +658,8 @@ class Parser {
             token = this.peekToken();
         } while (!stopAt.includes(token));
     
-        // 处理单目运算符++, --
+		// 下面处理单目运算符，C语言的单目运算符结合方向都是从右到左
+        // 先处理单目运算符++, --, 因为这两种运算符可以有前缀和后缀两种形式
         elementList.forEach((v, idx, arr) => {
             if (v === undefined) {
                 return;
@@ -678,7 +679,7 @@ class Parser {
                 arr[idx] = {
                     astType: Ast.AstPrefixOp,
                     token: v.token,
-                    ident: arr[idx+1]
+                    astIdent: arr[idx+1]
                 };
                 arr[idx+1] = undefined;
             } else if (v.astType === Ast.AstIdentifier) {
@@ -687,7 +688,7 @@ class Parser {
                     arr[idx] = {
                         astType: Ast.AstPostfixOp,
                         token: arr[idx+1].token,
-                        ident: v
+                        astIdent: v
                     };
                     arr[idx+1] = undefined;
                 }
@@ -695,7 +696,7 @@ class Parser {
         });
         elementList = elementList.filter(v => {return v !== undefined});
 
-        // 处理单目运算符-, *, &
+        // 处理单目运算符*, &, -, ~, !
         elementList.reverse().forEach((v, idx, arr) => {
             if (v.astType !== Ast.AstOperator) {
                 return ;
@@ -708,6 +709,7 @@ class Parser {
 
             switch (v.token) {
                 case Token.TokenAmpersand:
+					// 取地址操作符右边必须是左值
                     if (nextAst === undefined || nextAst.astType !== Ast.AstIdentifier) {
                         platform.programFail(`lvalue is required here`);
                     }
@@ -715,7 +717,7 @@ class Parser {
                     break;
                 case Token.TokenAsterisk:
                     if ((prevAst === undefined || prevAst.astType === Ast.AstOperator) &&
-                        [Ast.AstIdentifier, Ast.AstTakeAddress, Ast.AstTakeValue].includes(nextAst.astType)) {
+                            nextAst !== undefined && nextAst.astType !== Ast.AstOperator) {
                         astType = Ast.AstTakeValue;
                     }
                     break;

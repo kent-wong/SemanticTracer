@@ -624,16 +624,16 @@ class Evaluator {
         switch (ast.astType) {
             case Ast.AstPrefixOp:
                 if (ast.token === Token.TokenIncrement) {
-                    result = this.evalPrefixIncr(ast.ident);
+                    result = this.evalPrefixIncr(ast.astIdent);
                 } else {
-                    result = this.evalPrefixDecr(ast.ident);
+                    result = this.evalPrefixDecr(ast.astIdent);
                 }
                 break;
             case Ast.AstPostfixOp:
                 if (ast.token === Token.TokenIncrement) {
-                    result = this.evalPostfixIncr(ast.ident);
+                    result = this.evalPostfixIncr(ast.astIdent);
                 } else {
-                    result = this.evalPostfixDecr(ast.ident);
+                    result = this.evalPostfixDecr(ast.astIdent);
                 }
                 break;
             case Ast.AstFuncCall:
