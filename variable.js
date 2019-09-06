@@ -229,14 +229,59 @@ class Variable {
             if (refValue === 0) {
                 platform.programFail(`referrence to null pointer`);
             }
-            const newIndexes = this.ptrNewIndexes(refValue, indexes.pop());
+            const newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
             return refValue.refTo.createElementPointerVariable(newIndexes);
         }
     }
 
+    getLValue(indexes, autoFillIndexes) {
+        indexes = (indexes === undefined ? [] : indexes);
+        autoFillIndexes = (autoFillIndexes === undefined ? false : autoFillIndexes);
+
+        let variable = this;
+        let newIndexes = indexes;
+
+        if (indexes.length < this.dataType.arrayIndexes.length && !autoFillIndexes) {
+            return null;
+        }
+
+        if (indexes.length === this.dataType.arrayIndexes.length) {
+        } else if (indexes.length < this.dataType.arrayIndexes.length) {
+            newIndexes = indexes.slice();
+            newIndexes.length = this.dataType.arrayIndexes.length;
+            newIndexes.fill(0, indexes.length);
+        } else {
+            // 指定的索引维度大于本变量的数组维度
+            // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
+            let delta = indexes.length - this.dataType.arrayIndexes.length;
+            if (!this.isPtrType() || delta !== 1) {
+                platform.programFail(`subscripted value is neither array nor pointer`);
+            }
+
+            const truncatedIndexes = indexes.slice(0, this.dataType.arrayIndexes.length);
+            const refValue = this.getValue(truncatedIndexes);
+            if (refValue === 0) {
+                platform.programFail(`dereferrence to null pointer`);
+            }
+
+            variable = refValue.refTo;
+            if (variable.dataType.arrayIndexes.length === 0) {
+                platform.programFail(`semantic error:
+                                        attempts redirecting pointer to point to unknown place`);
+            }
+
+            newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
+        }
+
+        return {
+            variable: variable,
+            indexes: newIndexes
+        };
+    }
+
     // 创建一个variable，以指定的元素为其内容
     createElementVariable(indexes) {
-        indexes = (indexes === undefined ? null : indexes);
+        indexes = (indexes === undefined ? [] : indexes);
 
         // 索引维度和变量维度相等，返回元素值
         if (indexes.length === this.dataType.arrayIndexes.length) {
@@ -279,7 +324,7 @@ class Variable {
             platform.programFail(`referrence to null pointer`);
         }
 
-        const newIndexes = this.ptrNewIndexes(refValue, indexes.pop());
+        const newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
         return refValue.refTo.createElementVariable(newIndexes);
     }
 
@@ -429,7 +474,7 @@ class Variable {
         if (rhs.isNumericType()) {
             const n = rhs.getValue();
             if (n !== 0) {
-                platform.programFail(`Semantic error: it is *NOT* safe to assign a non-zero number to a pointer`);
+                platform.programFail(`semantic error: it is *NOT* safe to assign a non-zero number to a pointer`);
             }
             this.setValue(indexes, 0);
             return this;
@@ -501,7 +546,7 @@ class Variable {
         return indexes;
     }
 
-    ptrNewIndexes(refValue, n) {
+    indexesFromPointerOffset(refValue, n) {
         if (!refValue || refValue.refTo.dataType.arrayIndexes.length === 0) {
             assert(false, `internal: ptrRefCalc(): invalid input parameter`);
         }
@@ -523,10 +568,12 @@ class Variable {
         newPosition += n;
 
         if (newPosition >= numTotalElements) {
-            platform.programFail(`semantic error: increase pointer by ${n} will overflow the array boundary`);
+            platform.programFail(`semantic error:
+                                    increase pointer by ${n} will overflow the array boundary`);
         }
         if (newPosition < 0) {
-            platform.programFail(`semantic error: decrease pointer by ${n} will underflow the array boundary`);
+            platform.programFail(`semantic error:
+                                    decrease pointer by ${n} will underflow the array boundary`);
         }
 
         // 计算新的索引
@@ -559,11 +606,11 @@ class Variable {
         switch (opToken) {
             case Token.TokenAddAssign:
             case Token.TokenIncrement:
-                refValue.indexes = this.ptrNewIndexes(refValue, n);
+                refValue.indexes = this.indexesFromPointerOffset(refValue, n);
                 break;
             case Token.TokenSubtractAssign:
             case Token.TokenDecrement:
-                refValue.indexes = this.ptrNewIndexes(refValue, -n);
+                refValue.indexes = this.indexesFromPointerOffset(refValue, -n);
                 break;
             default:
                 assert(false, `internal: handlePtrChange(): unexpected operator token ${opToken}`);

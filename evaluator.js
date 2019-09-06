@@ -122,6 +122,27 @@ class Evaluator {
 
     // 处理自增/自减运算
     evalSelfOp(astIdent, isPostfix, isIncr) {
+        let variable;
+        const delta = (isIncr ? 1 : -1);
+
+        variable = this.getVariable(astIdent.ident);
+        if (variable === null) {
+            platform.programFail(`${astIdent.ident} undeclared`);
+        }
+
+        const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
+        variable = variable.createElementVariable(accessIndexes);
+        if (!variable.isNumericType()) {
+            platform.programFail(`wrong type argument to unary minus`);
+        }
+        variable.setValueUMinus();
+
+        return variable;
+
+
+
+
+        /* 
         // 通过AST获取变量，此变量必须存在于当前有效的scopes中
         const variable = this.getVariable(astIdent.ident);
         if (variable === null) {
@@ -163,6 +184,7 @@ class Evaluator {
         }
 
         return tempVariable;
+        */
     }
 
     evalPostfixIncr(astIdent) {
@@ -228,30 +250,6 @@ class Evaluator {
         return ptr.refTo.createElementVariable(ptr.indexes);
     }
 
-    /*
-    evalUnaryUnchangedOperator(astNode, opToken) {
-        const astIdent = astNode.astIdent;
-        let baseType = BaseType.TypeInt;
-        let val;
-
-        if (astIdent.astType === Ast.AstVariable) {
-            val = astIdent.value.getNumericValue();
-            if (val === null) {
-                platform.programFail(`wrong type argument to unary minus`);
-            }
-            baseType = astIdent.value.dataType.baseType;
-        } else if (astIdent.astType === Ast.AstConstant) {
-            if (astIdent.token !== Token.TokenIntegerConstant &&
-                  astIdent.token !== Token.TokenFPConstant) {
-                platform.programFail(`expect a numeric constant or value`);
-            }
-            val = astIdent.value;
-        }
-
-        return Variable.createNumericVariable(baseType, null, -val);
-    }
-    */
-
     evalTakeUMinus(astMinus) {
         const astIdent = astMinus.astIdent;
         let variable;
@@ -306,13 +304,28 @@ class Evaluator {
 
     evalTakeExor(astExor) {
         const astIdent = astExor.astIdent;
-        const variable = this.getVariable(astIdent.ident);
-        if (variable === null) {
-            platform.programFail(`${astIdent.ident} undeclared`);
+        let variable;
+
+        if (astIdent.astType === Ast.AstIdentifier) {
+            variable = this.getVariable(astIdent.ident);
+            if (variable === null) {
+                platform.programFail(`${astIdent.ident} undeclared`);
+            }
+
+            const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
+            variable = variable.createElementVariable(accessIndexes);
+            if (!variable.isNumericType()) {
+                platform.programFail(`wrong type argument to bit-complement`);
+            }
+            variable.setValueExor();
+        } else if (astIdent.astType === Ast.AstConstant) {
+            if (astIdent.token !== Token.TokenIntegerConstant) {
+                platform.programFail(`wrong type argument to bit-complement`);
+            }
+            variable = Variable.createNumericVariable(BaseType.TypeInt, null, ~astIdent.value);
         }
 
-        variable.setValueExor(null, astIdent.accessIndexes);
-        return variable.createElementVariable(astIdent.accessIndexes);
+        return variable;
     }
 
     evalVariableFromAstIdent(astIdent) {
