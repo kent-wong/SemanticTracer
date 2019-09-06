@@ -240,6 +240,7 @@ class Variable {
 
         let variable = this;
         let newIndexes = indexes;
+		let filled = false;
 
         if (indexes.length < this.dataType.arrayIndexes.length && !autoFillIndexes) {
             if (noFillMsg) {
@@ -254,6 +255,7 @@ class Variable {
             newIndexes = indexes.slice();
             newIndexes.length = this.dataType.arrayIndexes.length;
             newIndexes.fill(0, indexes.length);
+			filled = true;
         } else {
             // 指定的索引维度大于本变量的数组维度
             // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
@@ -279,7 +281,8 @@ class Variable {
 
         return {
             variable: variable,
-            accessIndexes: newIndexes
+            accessIndexes: newIndexes,
+			filled: filled
         };
     }
 
@@ -610,14 +613,14 @@ class Variable {
     } // end of handlePtrChange
 
     assignNumeric(indexes, rhs) {
-        if (!this.isNumericElement()) {
+        if (!this.isNumericType()) {
             platform.programFail(`Incompatible types`);
         }
 
         const n = rhs.getValue();
         let result = Variable.convertNumericValue(this.dataType.baseType, n);
         this.setValue(indexes, result);
-        return this.createElementVariable(indexes);
+        return this;
     } // end of assignNumeric
 
     assign(indexes, rhs) {

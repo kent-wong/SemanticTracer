@@ -124,6 +124,7 @@ class Evaluator {
     evalSelfOp(astIdent, isPostfix, isIncr) {
         let variable;
         let varResult;
+		let accessIndexes;
         const n = (isIncr ? 1 : -1);
 
         variable = this.getVariable(astIdent.ident);
@@ -131,7 +132,7 @@ class Evaluator {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
 
-        const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
+        accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
         ({variable, accessIndexes} = variable.getLValue(accessIndexes));
         if (variable.isPtrType()) {
             variable.handlePtrChange(accessIndexes, n, Token.TokenIncrement);
@@ -200,17 +201,21 @@ class Evaluator {
 
     evalTakeValue(astTakeValue) {
         const astIdent = astTakeValue.astIdent;
-        const variable = this.getVariable(astIdent.ident);
+        let variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
 
+		const msg = `ambiguity: please specify complete indexes`;
+        let accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
+		({variable, accessIndexes} = variable.getLValue(accessIndexes, false, msg));
+
         // 变量或变量元素的类型必须是指针
-        if (variable.dataType.numPtrs === 0) {
-            platform.programFail(`not a pointer`);
+        if (!variable.isPtrType()) {
+            platform.programFail(`lvalue is NOT a pointer`);
         }
 
-        const ptr = variable.getValue(astIdent.accessIndexes);
+        const ptr = variable.getValue(accessIndexes);
         if (ptr === 0) {
             platform.programFail(`dereferrence to a NULL pointer`);
         }
