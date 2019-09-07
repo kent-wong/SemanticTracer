@@ -1,11 +1,10 @@
-int max(int m, int n) {
-    return 100;
-}
+int arr[2][3] = { 100, 200, 300 };
+int a = 100, c;
+int *p;
+//int *parr[3];
 
-int main()
-{
-	int a[10];
-    int b = max(1, 2);
+p = &arr[0][1];
+c = ++ arr[0][2];
+p ++;
 
-	return 0;
-}
+c = *p ++;
