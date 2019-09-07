@@ -659,7 +659,8 @@ class Parser {
         } while (!stopAt.includes(token));
     
 		// 下面处理单目运算符，C语言的单目运算符结合方向都是从右到左
-        // 先处理单目运算符++, --, 因为这两种运算符可以有前缀和后缀两种形式
+        // 先单独处理单目运算符++, --, 因为这两种运算符可以有前缀和后缀两种形式
+		// 经过下面的处理后，后缀形式的++和--将被消除，便于后续处理其他单目运算符
         elementList.forEach((v, idx, arr) => {
             if (v === undefined) {
                 return;
@@ -679,7 +680,7 @@ class Parser {
                 arr[idx] = {
                     astType: Ast.AstPrefixOp,
                     token: v.token,
-                    astIdent: arr[idx+1]
+                    astOperand: arr[idx+1]
                 };
                 arr[idx+1] = undefined;
             } else if (v.astType === Ast.AstIdentifier) {
@@ -688,7 +689,7 @@ class Parser {
                     arr[idx] = {
                         astType: Ast.AstPostfixOp,
                         token: arr[idx+1].token,
-                        astIdent: v
+                        astOperand: v
                     };
                     arr[idx+1] = undefined;
                 }
@@ -710,12 +711,14 @@ class Parser {
             switch (v.token) {
                 case Token.TokenAmpersand:
 					// 取地址操作符右边必须是左值
-                    if (nextAst === undefined || nextAst.astType !== Ast.AstIdentifier) {
+                    if (nextAst === undefined ||
+						  nextAst.astType !== Ast.AstIdentifier && nextAst.astType !== Ast.AstTakeValue) {
                         platform.programFail(`lvalue is required here`);
                     }
                     astType = Ast.AstTakeAddress;
                     break;
                 case Token.TokenAsterisk:
+					//const validAstTypes = [Ast.AstIdentifier, Ast.AstPostfixOp, Ast.AstPrefixOp, Ast.AstTakeAddress, Ast.AstTakeValue];
                     if ((prevAst === undefined || prevAst.astType === Ast.AstOperator) &&
                             nextAst !== undefined && nextAst.astType !== Ast.AstOperator) {
                         astType = Ast.AstTakeValue;
@@ -739,6 +742,13 @@ class Parser {
                     }
                     astType = Ast.AstUnaryExor;
                     break;
+				case Token.TokenIncrement:
+				case Token.TokenDecrement:
+                    if (nextAst === undefined || nextAst.astType === Ast.AstTakeValue) {
+						platform.programFail(`lvalue is required here`);
+                    }
+					astType = Ast.AstPrefixOp;
+					break;
                 default:
                     astType = null;
                     break;
@@ -748,7 +758,7 @@ class Parser {
                 arr[idx] = {
                     astType: astType,
                     token: v.token,
-                    astIdent: arr[nextIdx]
+                    astOperand: arr[nextIdx]
                 };
                 arr[nextIdx] = undefined;
             }

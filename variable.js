@@ -206,18 +206,38 @@ class Variable {
         };
     }
 
-    createElementAddressVariable(indexes) {
-        indexes = (indexes === undefined ? null : indexes);
+	createVariableRef(indexes, autoFillIndexes, noFillMsg) {
+        indexes = (indexes === undefined ? [] : indexes);
+        autoFillIndexes = (autoFillIndexes === undefined ? false : autoFillIndexes);
 
-        // 索引维度和变量维度相等，返回指向变量(的元素)的指针
+        let variable = this;
+        let newIndexes = indexes;
+
+        if (indexes.length < this.dataType.arrayIndexes.length && !autoFillIndexes) {
+            if (noFillMsg) {
+                platform.programFail(noFillMsg);
+            } else {
+                platform.programFail(`insufficient indexes`);
+            }
+        }
+
         if (indexes.length === this.dataType.arrayIndexes.length) {
-            return this.createElementPointerVariable(indexes);
+			/* use default value */
         } else if (indexes.length < this.dataType.arrayIndexes.length) {
-            const newIndexes = indexes.slice();
+			// 如果本变量是数组，并且指定的索引维度小于本数组维度，
+			// 那么返回指针类型。计算原则如下：
+			//      int *p;
+			//      int array[2][3];
+			//      p = array       --->  p = &array[0][0]
+			//      p = array[0]    --->  p = &array[0][0]
+			//      p = array[1]    --->  p = &array[1][0]
+            newIndexes = indexes.slice();
             newIndexes.length = this.dataType.arrayIndexes.length;
             newIndexes.fill(0, indexes.length);
-            return this.createElementPointerVariable(newIndexes);
+            variable = this.createElementPointerVariable(newIndexes);
+			newIndexes = [];
         } else {
+            // 指定的索引维度大于本变量的数组维度
             // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
             let delta = indexes.length - this.dataType.arrayIndexes.length;
             if (!this.isPtrType() || delta !== 1) {
@@ -227,14 +247,26 @@ class Variable {
             const truncatedIndexes = indexes.slice(0, this.dataType.arrayIndexes.length);
             const refValue = this.getValue(truncatedIndexes);
             if (refValue === 0) {
-                platform.programFail(`referrence to null pointer`);
+                platform.programFail(`dereferrence to null pointer`);
             }
-            const newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
-            return refValue.refTo.createElementPointerVariable(newIndexes);
-        }
-    }
 
-    getLValue(indexes, autoFillIndexes, noFillMsg) {
+            variable = refValue.refTo;
+            if (variable.dataType.arrayIndexes.length === 0) {
+                platform.programFail(`semantic error:
+                                        attempts redirecting pointer to point to unknown place`);
+            }
+
+            newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
+        }
+
+        return {
+            variable: variable,
+            accessIndexes: newIndexes
+        };
+
+	}
+
+    getReferrence(indexes, autoFillIndexes, noFillMsg) {
         indexes = (indexes === undefined ? [] : indexes);
         autoFillIndexes = (autoFillIndexes === undefined ? false : autoFillIndexes);
 
@@ -246,7 +278,7 @@ class Variable {
             if (noFillMsg) {
                 platform.programFail(noFillMsg);
             } else {
-                platform.programFail(`lvalue required`);
+                platform.programFail(`insufficient indexes`);
             }
         }
 
@@ -333,6 +365,34 @@ class Variable {
 
         const newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
         return refValue.refTo.createElementVariable(newIndexes);
+    }
+
+    createElementAddressVariable(indexes) {
+        indexes = (indexes === undefined ? null : indexes);
+
+        // 索引维度和变量维度相等，返回指向变量(的元素)的指针
+        if (indexes.length === this.dataType.arrayIndexes.length) {
+            return this.createElementPointerVariable(indexes);
+        } else if (indexes.length < this.dataType.arrayIndexes.length) {
+            const newIndexes = indexes.slice();
+            newIndexes.length = this.dataType.arrayIndexes.length;
+            newIndexes.fill(0, indexes.length);
+            return this.createElementPointerVariable(newIndexes);
+        } else {
+            // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
+            let delta = indexes.length - this.dataType.arrayIndexes.length;
+            if (!this.isPtrType() || delta !== 1) {
+                platform.programFail(`subscripted value is neither array nor pointer`);
+            }
+
+            const truncatedIndexes = indexes.slice(0, this.dataType.arrayIndexes.length);
+            const refValue = this.getValue(truncatedIndexes);
+            if (refValue === 0) {
+                platform.programFail(`referrence to null pointer`);
+            }
+            const newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
+            return refValue.refTo.createElementPointerVariable(newIndexes);
+        }
     }
 
     // 创建一个指针variable，以指定的元素为其引用
