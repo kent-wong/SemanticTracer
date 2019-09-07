@@ -316,6 +316,22 @@ class Evaluator {
 		};
     }
 
+	variableRefFromAstConstant(astConst) {
+		let varRef;
+		let variable;
+		let baseType;
+
+		if (astConst.token === Token.TokenIntegerConstant) {
+			baseType = BaseType.TypeInt;
+		} else if (astConst.token === Token.TokenFPConstant) {
+			baseType = BaseType.TypeFP;
+		}
+
+		variable = Variable.createNumericVariable(baseType, null, astConst.value);
+		varRef = this.variableRefFromVariable(variable, []);
+		return varRef;
+	}
+
     variableRefFromVariable(variable, accessIndexes) {
 		const varRef = variable.createVariableRef(accessIndexes);
 		return {
@@ -348,6 +364,7 @@ class Evaluator {
         }
     } // end of assertValidExpression
 
+	/*
 	// 将AstIdentifier和AstConstant转换成Variable，
 	// 包括单目操作符中的AstIdentifier和AstConstant
 	expressionConvert2Variable(astUnary) {
@@ -370,6 +387,7 @@ class Evaluator {
 
 		return varRef;
 	}
+	*/
 
     // 将表达式列表中的元素进行合法性检查和转换
     expressionMap(elementList) {
@@ -432,7 +450,7 @@ class Evaluator {
 					case Ast.AstUMinus:
 					case Ast.AstUnaryNot:
 					case Ast.AstUnaryExor:
-						newElement = this.expressionConvert2Variable(astElement);
+						//newElement = this.expressionConvert2Variable(astElement);
 						break;
 					default:
 						break;
@@ -650,57 +668,23 @@ class Evaluator {
         return result.getValue() !== 0;
     }
 
-	evalUnaryDispatch(astUnary) {
-		let variable = null;
-
-        switch (astUnary.astType) {
-            case Ast.AstPrefixOp:
-                if (ast.token === Token.TokenIncrement) {
-                    variable = this.evalPrefixIncr(astUnary.astOperand);
-                } else {
-                    variable = this.evalPrefixDecr(astUnary.astOperand);
-                }
-                break;
-            case Ast.AstPostfixOp:
-                if (ast.token === Token.TokenIncrement) {
-                    variable = this.evalPostfixIncr(astUnary.astOperand);
-                } else {
-                    variable = this.evalPostfixDecr(astUnary.astOperand);
-                }
-                break;
-			case Ast.AstTakeAddress:
-				variable = this.evalTakeAddress(astUnary.astOperand);
-				break;
-			case Ast.AstTakeValue:
-				break;
-			case Ast.AstUMinus:
-				break;
-			case Ast.AstUnaryNot:
-				break;
-			case Ast.AstUnaryExor:
-				break;
-            case Ast.AstFuncCall:
-                result = this.evalFuncCall(ast);
-                break;
-            case Ast.AstExpression:
-                result = this.evalExpression(ast);
-                break;
-            default:
-                return ast;
-        }
-	}
-
     // 进行单目运算符、函数调用，子表达式的计算
     evalUnaryOperator(astUnary) {
 		let varRef = astUnary;
 
         switch (astUnary.astType) {
             case Ast.AstFuncCall:
-                varRef = this.evalFuncCall(ast);
+                varRef = this.evalFuncCall(astUnary);
                 break;
             case Ast.AstExpression:
-                varRef = this.evalExpression(ast);
+                varRef = this.evalExpression(astUnary);
                 break;
+			case Ast.AstIdentifier:
+				varRef = this.variableRefFromAstIdent(astUnary);
+				break;
+			case Ast.AstConstant:
+				varRef = this.variableRefFromAstConstant(astUnary);
+				break;
             case Ast.AstPrefixOp:
 				if (astUnary.astOperand.astType !== Ast.AstVariable) {
 					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
