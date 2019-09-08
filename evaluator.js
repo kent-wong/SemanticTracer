@@ -133,7 +133,7 @@ class Evaluator {
                 astOperand.variable.handlePtrChange(astOperand.accessIndexes, n, Token.TokenIncrement);
                 varResult = astOperand.variable.createElementVariable(astOperand.accessIndexes);
             }
-        } else if (variable.isNumericType()) {
+        } else if (astOperand.variable.isNumericType()) {
             if (isPostfix) {
                 varResult = astOperand.variable.createElementVariable(astOperand.accessIndexes);
                 astOperand.variable.setValueIncr(astOperand.accessIndexes, n);
