@@ -332,43 +332,16 @@ class Variable {
                 customType: this.dataType.customType
             };
 
-            const theValue = this.getValue(indexes);
+            let theValue = this.getValue(indexes);
+            if (theType.numPtrs) {
+                theValue = {
+                    refTo: theValue.refTo,
+                    indexes: theValue.indexes
+                };
+            }
             const theVariable = new Variable(theType, null, theValue);
             return theVariable;
         }
-
-
-        /*
-        // 如果本变量是数组，并且指定的索引维度小于本数组维度，
-        // 那么返回指针类型。计算原则如下：
-        //      int *p;
-        //      int array[2][3];
-        //      p = array       --->  p = &array[0][0]
-        //      p = array[0]    --->  p = &array[0][0]
-        //      p = array[1]    --->  p = &array[1][0]
-        if (indexes.length < this.dataType.arrayIndexes.length) {
-            const newIndexes = indexes.slice();
-            newIndexes.length = this.dataType.arrayIndexes.length;
-            newIndexes.fill(0, indexes.length);
-            return this.createElementPointerVariable(newIndexes);
-        }
-
-        // 指定的索引维度大于本变量的数组维度
-        // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
-        let delta = indexes.length - this.dataType.arrayIndexes.length;
-        if (!this.isPtrType() || delta !== 1) {
-            platform.programFail(`subscripted value is neither array nor pointer`);
-        }
-
-        const truncatedIndexes = indexes.slice(0, this.dataType.arrayIndexes.length);
-        const refValue = this.getValue(truncatedIndexes);
-        if (refValue === 0) {
-            platform.programFail(`referrence to null pointer`);
-        }
-
-        const newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
-        return refValue.refTo.createElementVariable(newIndexes);
-        */
     }
 
     createElementAddressVariable(indexes) {

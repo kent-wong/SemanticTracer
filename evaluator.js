@@ -149,7 +149,12 @@ class Evaluator {
             }
         }
 
-        return varResult;
+        return {
+            astType: Ast.AstVariable,
+            variable: varResult,
+            accessIndexes: []
+        };
+
 
         /*
         let variable;
