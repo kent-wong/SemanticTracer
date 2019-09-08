@@ -298,7 +298,7 @@ class Evaluator {
     evalTakeNot(astOperand) {
         // '!'操作符不关心操作数的具体类型，这里直接取值
         const value = astOperand.variable.getValue(astOperand.accessIndexes);
-        const variable = Variable.createNumericVariable(BaseType.TypeInt, null, !val);
+        const variable = Variable.createNumericVariable(BaseType.TypeInt, null, !value);
         return {
             astType: Ast.AstVariable,
             variable: variable,
@@ -424,7 +424,7 @@ class Evaluator {
                     case Token.TokenLogicalOr:
                     //case Token.TokenQuestionMark:
                     //case Token.TokenColon:
-                        value = prio.get(astElement.token);
+                        const value = prio.get(astElement.token);
                         assert(value !== undefined, `operator ${astElement.token} has no prio`);
 						newElement = {
 							astType: Ast.AstOperator,
@@ -790,27 +790,27 @@ class Evaluator {
                 baseType = BaseType.TypeUnsignedLong;
                 break;
             case Token.TokenLessThan: // 小于
-                result = val1 < val2;
+                result = val1 < val2 ? 1 : 0;
                 baseType = BaseType.TypeInt;
                 break;
             case Token.TokenLessEqual: // 小于等于
-                result = val1 <= val2;
+                result = val1 <= val2 ? 1 : 0;
                 baseType = BaseType.TypeInt;
                 break;
             case Token.TokenGreaterThan: // 大于
-                result = val1 > val2;
+                result = val1 > val2 ? 1 : 0;
                 baseType = BaseType.TypeInt;
                 break;
             case Token.TokenGreaterEqual: // 大于等于
-                result = val1 >= val2;
+                result = val1 >= val2 ? 1 : 0;
                 baseType = BaseType.TypeInt;
                 break;
             case Token.TokenEqual: // 等于
-                result = val1 === val2;
+                result = val1 === val2 ? 1 : 0;
                 baseType = BaseType.TypeInt;
                 break;
             case Token.TokenNotEqual: // 不等于
-                result = val1 !== val2;
+                result = val1 !== val2 ? 1 : 0;
                 baseType = BaseType.TypeInt;
                 break;
             case Token.TokenAmpersand: // 按位与
@@ -982,7 +982,7 @@ class Evaluator {
 
         if (condition) {
             this.evalBody(astIf.ifBranch);
-        } else {
+        } else if (astIf.elseBranch !== null){
             if (astIf.elseBranch.astType === Ast.AstIf) {
                 this.evalIf(astIf.elseBranch);
             } else {
