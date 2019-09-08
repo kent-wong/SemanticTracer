@@ -288,66 +288,22 @@ class Evaluator {
         }
         variable.setValueUMinus();
 
-        return variable;
-
-        /*
-        const astIdent = astMinus.astIdent;
-        let variable;
-
-        if (astIdent.astType === Ast.AstIdentifier) {
-            variable = this.getVariable(astIdent.ident);
-            if (variable === null) {
-                platform.programFail(`${astIdent.ident} undeclared`);
-            }
-
-            const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-            variable = variable.createElementVariable(accessIndexes);
-            if (!variable.isNumericType()) {
-                platform.programFail(`wrong type argument to unary minus`);
-            }
-            variable.setValueUMinus();
-        } else if (astIdent.astType === Ast.AstConstant) {
-            if (astIdent.token !== Token.TokenIntegerConstant &&
-                  astIdent.token !== Token.TokenFPConstant) {
-                platform.programFail(`expect a numeric constant or value`);
-            }
-            variable = Variable.createNumericVariable(BaseType.TypeInt, null, -astIdent.value);
-        }
-
-        return variable;
-        */
+        return {
+            astType: Ast.AstVariable,
+            variable: variable,
+            accessIndexes: []
+        };
     }
 
     evalTakeNot(astOperand) {
         // '!'操作符不关心操作数的具体类型，这里直接取值
         const value = astOperand.variable.getValue(astOperand.accessIndexes);
         const variable = Variable.createNumericVariable(BaseType.TypeInt, null, !val);
-        return variable;
-
-        /*
-        const astIdent = astNot.astIdent;
-        let variable;
-        let val;
-
-        if (astIdent.astType === Ast.AstIdentifier) {
-            variable = this.getVariable(astIdent.ident);
-            if (variable === null) {
-                platform.programFail(`${astIdent.ident} undeclared`);
-            }
-
-            const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-            variable = variable.createElementVariable(accessIndexes);
-            val = variable.getValue();
-        } else if (astIdent.astType === Ast.AstConstant) {
-            if (astIdent.token !== Token.TokenIntegerConstant &&
-                  astIdent.token !== Token.TokenFPConstant) {
-                platform.programFail(`expect a numeric constant or value`);
-            }
-            val = astIdent.value;
-        }
-
-        return Variable.createNumericVariable(BaseType.TypeInt, null, !val);
-        */
+        return {
+            astType: Ast.AstVariable,
+            variable: variable,
+            accessIndexes: []
+        };
     }
 
     evalTakeExor(astOperand) {
@@ -357,33 +313,11 @@ class Evaluator {
         }
         variable.setValueExor();
 
-        return variable;
-
-        /*
-        const astIdent = astExor.astIdent;
-        let variable;
-
-        if (astIdent.astType === Ast.AstIdentifier) {
-            variable = this.getVariable(astIdent.ident);
-            if (variable === null) {
-                platform.programFail(`${astIdent.ident} undeclared`);
-            }
-
-            const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-            variable = variable.createElementVariable(accessIndexes);
-            if (!variable.isNumericType()) {
-                platform.programFail(`wrong type argument to bit-complement`);
-            }
-            variable.setValueExor();
-        } else if (astIdent.astType === Ast.AstConstant) {
-            if (astIdent.token !== Token.TokenIntegerConstant) {
-                platform.programFail(`wrong type argument to bit-complement`);
-            }
-            variable = Variable.createNumericVariable(BaseType.TypeInt, null, ~astIdent.value);
-        }
-
-        return variable;
-        */
+        return {
+            astType: Ast.AstVariable,
+            variable: variable,
+            accessIndexes: []
+        };
     }
 
     variableRefFromAstIdent(astIdent, autoFillIndexes) {
