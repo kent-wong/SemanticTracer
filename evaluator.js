@@ -651,6 +651,7 @@ class Evaluator {
     // 进行单目运算符、函数调用，子表达式的计算
     evalUnaryOperator(astUnary) {
 		let varRef = astUnary;
+        let operand;
 
         switch (astUnary.astType) {
             case Ast.AstFuncCall:
@@ -666,54 +667,61 @@ class Evaluator {
 				varRef = this.variableRefFromAstConstant(astUnary);
 				break;
             case Ast.AstPrefixOp:
+                operand = astUnary.astOperand;
 				if (astUnary.astOperand.astType !== Ast.AstVariable) {
-					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+					operand = this.evalUnaryOperator(astUnary.astOperand);
 				}
                 if (astUnary.token === Token.TokenIncrement) {
-                    varRef = this.evalPrefixIncr(astUnary.astOperand);
+                    varRef = this.evalPrefixIncr(operand);
                 } else {
-                    varRef = this.evalPrefixDecr(astUnary.astOperand);
+                    varRef = this.evalPrefixDecr(operand);
                 }
 				break;
             case Ast.AstPostfixOp:
+                operand = astUnary.astOperand;
 				if (astUnary.astOperand.astType !== Ast.AstVariable) {
-					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+					operand = this.evalUnaryOperator(astUnary.astOperand);
 				}
                 if (astUnary.token === Token.TokenIncrement) {
-                    varRef = this.evalPostfixIncr(astUnary.astOperand);
+                    varRef = this.evalPostfixIncr(operand);
                 } else {
-                    varRef = this.evalPostfixDecr(astUnary.astOperand);
+                    varRef = this.evalPostfixDecr(operand);
                 }
 				break;
 			case Ast.AstTakeAddress:
+                operand = astUnary.astOperand;
 				if (astUnary.astOperand.astType !== Ast.AstVariable) {
-					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+					operand = this.evalUnaryOperator(astUnary.astOperand);
 				}
-				varRef = this.evalTakeAddress(astUnary.astOperand);
+				varRef = this.evalTakeAddress(operand);
 				break;
 			case Ast.AstTakeValue:
+                operand = astUnary.astOperand;
 				if (astUnary.astOperand.astType !== Ast.AstVariable) {
-					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+					operand = this.evalUnaryOperator(astUnary.astOperand);
 				}
-				varRef = this.evalTakeValue(astUnary.astOperand);
+				varRef = this.evalTakeValue(operand);
 				break;
 			case Ast.AstUMinus:
+                operand = astUnary.astOperand;
 				if (astUnary.astOperand.astType !== Ast.AstVariable) {
-					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+					operand = this.evalUnaryOperator(astUnary.astOperand);
 				}
-				varRef = this.evalTakeUMinus(astUnary.astOperand);
+				varRef = this.evalTakeUMinus(operand);
 				break;
 			case Ast.AstUnaryNot:
+                operand = astUnary.astOperand;
 				if (astUnary.astOperand.astType !== Ast.AstVariable) {
-					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+					operand = this.evalUnaryOperator(astUnary.astOperand);
 				}
-				varRef = this.evalTakeNot(astUnary.astOperand);
+				varRef = this.evalTakeNot(operand);
 				break;
 			case Ast.AstUnaryExor:
+                operand = astUnary.astOperand;
 				if (astUnary.astOperand.astType !== Ast.AstVariable) {
-					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+					operand = this.evalUnaryOperator(astUnary.astOperand);
 				}
-				varRef = this.evalTakeExor(astUnary.astOperand);
+				varRef = this.evalTakeExor(operand);
 				break;
 			default:
 				break;
@@ -962,6 +970,14 @@ class Evaluator {
     }
 
     evalBody(astBody) {
+        // 处理空语句体
+        if (astBody === null) {
+            return ;
+        }
+
+        this.evalDispatch(astBody);
+
+        /*
         switch (astBody.astType) {
             case Ast.AstExpression:
                 this.evalExpression(astBody);
@@ -973,6 +989,7 @@ class Evaluator {
                 assert(false, `internal: evalBody(): unexpected Ast Type ${astBody.astType}`);
                 break;
         }
+        */
 
         return ;
     }
@@ -1042,9 +1059,9 @@ class Evaluator {
     }
 
     evalFor(astFor) {
-        this.pushScope(Ast.AstFor);
+        this.scopes.pushScope(Ast.AstFor);
         if (astFor.initial !== null) {
-            this.evalDeclaration(astFor.initial);
+            this.evalDispatch(astFor.initial);
         }
 
         while(this.evalExpressionBoolean(astFor.conditional)) {
@@ -1065,7 +1082,8 @@ class Evaluator {
 
             this.evalExpression(astFor.finalExpression);
         }
-        this.popScope();
+
+        this.scopes.popScope();
     }
 
     /*

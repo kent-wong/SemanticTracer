@@ -808,6 +808,11 @@ class Parser {
     }
 
     parseBlock(...stopAt) {
+        // 处理空语句块
+        if (stopAt.includes(this.peekToken())) {
+            return null;
+        }
+
         let token = Token.TokenNone;
         const astBlock = this.createAstBlock();
 
@@ -827,6 +832,7 @@ class Parser {
     parseBody() {
         let astResult = null;
 
+        /*
         if (this.lexer.forwardIfMatch(Token.TokenLeftBrace)) {
             astResult = this.parseBlock(Token.TokenRightBrace);
         } else {
@@ -834,7 +840,9 @@ class Parser {
             astResult = this.parseExpression();
         }
         this.getToken();
+        */
 
+        astResult = this.parseStatement();
         return astResult;
     } // end of parseBody()
 
@@ -920,10 +928,15 @@ class Parser {
         }
 
         initial = this.parseStatement();
-        conditional = this.parseStatement();
-        finalExpression = this.parseExpression(Token.TokenCloseParenth);
+        conditional = this.parseExpression();
+        if (!this.lexer.forwardIfMatch(Token.TokenSemicolon)) {
+            platform.programFail(`';' expected`);
+        }
 
-        assert(this.getToken(), Token.TokenCloseParenth, `parseFor(): ')' is expected`);
+        finalExpression = this.parseExpression(Token.TokenCloseParenth);
+        if (!this.lexer.forwardIfMatch(Token.TokenCloseParenth)) {
+            platform.programFail(`')' expected`);
+        }
 
         astFor.initial = initial;
         astFor.conditional = conditional;
