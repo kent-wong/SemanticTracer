@@ -458,8 +458,9 @@ class Variable {
         return this.isPtrType(false);
     }
 
-    isNumericType(allowArray) {
+    isNumericType(allowArray, allowFP) {
         allowArray = (allowArray === undefined ? true : allowArray);
+        allowFP = (allowFP === undefined ? true : allowFP);
 
         if (this.isArrayType() && !allowArray) {
             return false;
@@ -483,15 +484,27 @@ class Variable {
             case BaseType.TypeUnsignedShort:
             case BaseType.TypeUnsignedChar:
             case BaseType.TypeUnsignedLong:
-            case BaseType.TypeFP:
                 return true;
+            case BaseType.TypeFP:
+                if (allowFP) {
+                    return true;
+                }
         }
+
 
         return false; // todo
     }
 
     isNumericTypeNonArray() {
         return this.isNumericType(false);
+    }
+
+    isIntegerType() {
+        return this.isNumericType(true, false);
+    }
+
+    isIntegerTypeNonArray() {
+        return this.isNumericType(false, false);
     }
 
     initArrayValue(initValues) {
@@ -676,32 +689,34 @@ class Variable {
         return this;
     } // end of handlePtrChange
 
-    assignNumeric(indexes, rhs) {
+    assignNumeric(indexes, rhsElem) {
         if (!this.isNumericType()) {
             platform.programFail(`Incompatible types`);
         }
 
-        const n = rhs.getValue();
+        const n = rhsElem.getValue();
         let result = Variable.convertNumericValue(this.dataType.baseType, n);
         this.setValue(indexes, result);
         return this;
     } // end of assignNumeric
 
-    assign(indexes, rhs) {
+    assign(indexes, rhsElem) {
         if (this.isPtrType()) {
             // 对指针赋值
-            return this.assignToPtr(indexes, rhs);
+            return this.assignToPtr(indexes, rhsElem);
         } else {
-            if (rhs.isPtrType()) {
-                platform.programFail(`Can Not assign a pointer to ${BaseType.getTypeName(this.dataType.baseType)}`);
+            if (rhsElem.isPtrType()) {
+                platform.programFail(`
+                    Can Not assign a pointer to ${BaseType.getTypeName(this.dataType.baseType)}`);
             }
             
-            if (rhs.isArrayType()) {
-                platform.programFail(`Can Not assign an array to ${BaseType.getTypeName(this.dataType.baseType)}`);
+            if (rhsElem.isArrayType()) {
+                platform.programFail(`
+                    Can Not assign an array to ${BaseType.getTypeName(this.dataType.baseType)}`);
             }
 
-            if (rhs.isNumericType()) {
-                return this.assignNumeric(indexes, rhs);
+            if (rhsElem.isNumericType()) {
+                return this.assignNumeric(indexes, rhsElem);
             }
 
         }

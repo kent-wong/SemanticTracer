@@ -102,7 +102,7 @@ class Evaluator {
                 // 将初始化列表展开，并且对元素进行表达式求值
                 let initializer = new ArrayInit(dataType.arrayIndexes, astDecl.rhs.initValues);
                 let initValues = initializer.doInit();
-                initValues = initValues.map((v) => v === null ? null : this.evalExpression(v), this);
+                initValues = initValues.map((v) => v === null ? null : this.evalExpressionRHS(v), this);
 
                 // 对数组进行初始化
                 variable.initArrayValue(initValues);
@@ -111,7 +111,7 @@ class Evaluator {
                 if (astDecl.arrayIndexes.length !== 0) {
                     platform.programFail(`invalid initializer: variable '${astDecl.ident}' is an array`);
                 }
-                let varRHS = this.evalExpression(astDecl.rhs);
+                let varRHS = this.evalExpressionRHS(astDecl.rhs);
                 variable.initScalarValue(varRHS);
             }
         }
@@ -543,18 +543,12 @@ class Evaluator {
                     bestPrio = prio;
 
                     // 对"||"操作符进行特殊处理，如果前半部分表达式为true则直接返回
-                    if (elem.token === Token.TokenArithmeticOr) {
+                    if (elem.token === Token.TokenLogicalOr) {
                         if (stack.length !== 1) {
                             platform.programFail(`invalid expression`);
                         }
 
                         const value = stack[0].variable.getValue(stack[0].accessIndexes);
-                        /*
-                        if (value === null) {
-                            platform.programFail('expression before "||" can NOT be evaluated to boolean');
-                        }
-                        */
-
                         if (value) {
                             return stack[0];
                         }
@@ -570,12 +564,6 @@ class Evaluator {
         if (stack.length !== 1) {
             platform.programFail(`invalid expression`);
         }
-
-        /*
-        if (stack[0].astType !== Ast.AstIdentifier) {
-            platform.programFail(`invalid expression`);
-        }
-        */
 
         return stack[0];
     } // end of expressionReduce
@@ -693,37 +681,32 @@ class Evaluator {
             astExpr = astExpr.next;
         } while (astExpr !== null);
 
-        if (result.astType !== Ast.AstConstant && result.astType !== Ast.AstVariable) {
-            assert(false, `internal: evalExpression(): Unexpected astType ${result.astType}`);
-        }
-
-        if (result.astType === Ast.AstConstant) {
-            result = Variable.createNumericVariable(BaseType.TypeInt, null, result.value);
-        } else if (result.astType === Ast.AstVariable) {
-            result = result.value;
-        }
-
         return result;
     } // end of evalExpression
+
+    evalExpressionRHS(AstExpression) {
+        const result = this.evalExpression(AstExpression);
+        return result.variable.createElementVariable(result.accessIndexes);
+    }
 
     evalExpressionInt(AstExpression) {
         const result = this.evalExpression(AstExpression);
 
-        if (!result.isNumericTypeNonArray()) {
+        if (!result.variable.isNumericTypeNonArray()) {
             platform.programFail('not a numeric expression');
         }
 
-        return result.getValue();
+        return result.variable.getValue();
     }
 
     evalExpressionBoolean(AstExpression) {
         const result = this.evalExpression(AstExpression);
 
-        if (!result.isNumericTypeNonArray()) {
+        if (!result.variable.isNumericTypeNonArray()) {
             platform.programFail('expression can NOT be evaluated to boolean');
         }
 
-        return result.getValue() !== 0;
+        return result.variable.getValue() !== 0;
     }
 
     // 进行单目运算符、函数调用，子表达式的计算
@@ -800,12 +783,6 @@ class Evaluator {
 		return varRef;
     } // end of evalUnaryOperator
 
-    /* 注意：所有eval*Operator函数的返回值都为：
-        return {
-            astType: Ast.AstVariable,
-            value: variable
-        };
-    */
     evalBinaryOperator(lhs, rhs, opToken) {
         let val1;
         let val2;
@@ -875,48 +852,48 @@ class Evaluator {
                 break;
             case Token.TokenLessThan: // 小于
                 result = val1 < val2;
-                baseType = BaseType.TypeUnsignedLong;
+                baseType = BaseType.TypeInt;
                 break;
             case Token.TokenLessEqual: // 小于等于
                 result = val1 <= val2;
-                baseType = BaseType.TypeUnsignedLong;
+                baseType = BaseType.TypeInt;
                 break;
             case Token.TokenGreaterThan: // 大于
                 result = val1 > val2;
-                baseType = BaseType.TypeUnsignedLong;
+                baseType = BaseType.TypeInt;
                 break;
             case Token.TokenGreaterEqual: // 大于等于
                 result = val1 >= val2;
-                baseType = BaseType.TypeUnsignedLong;
+                baseType = BaseType.TypeInt;
                 break;
             case Token.TokenEqual: // 等于
                 result = val1 === val2;
-                baseType = BaseType.TypeUnsignedLong;
+                baseType = BaseType.TypeInt;
                 break;
             case Token.TokenNotEqual: // 不等于
                 result = val1 !== val2;
-                baseType = BaseType.TypeUnsignedLong;
+                baseType = BaseType.TypeInt;
                 break;
             case Token.TokenAmpersand: // 按位与
                 if (hasFP) {
                     platform.programFail(`invalid operands to binary &`);
                 }
                 result = val1 & val2;
-                baseType = BaseType.TypeUnsignedLong;
+                baseType = BaseType.TypeInt;
                 break;
             case Token.TokenArithmeticOr: // 按位或
                 if (hasFP) {
                     platform.programFail(`invalid operands to binary |`);
                 }
                 result = val1 | val2;
-                baseType = BaseType.TypeUnsignedLong;
+                baseType = BaseType.TypeInt;
                 break;
             case Token.TokenArithmeticExor: // 按位异或
                 if (hasFP) {
                     platform.programFail(`invalid operands to binary ^`);
                 }
                 result = val1 ^ val2;
-                baseType = BaseType.TypeUnsignedLong;
+                baseType = BaseType.TypeInt;
                 break;
             case Token.TokenLogicalAnd: // 逻辑与
                 result = val1 && val2;
@@ -946,57 +923,62 @@ class Evaluator {
     } // end of evalBinaryOperator
 
     evalAssignOperator(astIdent, astExpression, assignToken) {
+        assignToken = (assignToken === undefined ? Token.TokenAssign : assignToken);
         const lhs = this.evalUnaryOperator(astIdent);
         const rhs = this.evalExpression(astExpression);
+        const rhsElem = rhs.variable.createElementVariable(rhs.accessIndexes);
 
-
-        /*
-        let rhs;
-        let ret;
-
-        const variable = this.getVariable(astIdent.ident);
-        if (variable === null) {
-            platform.programFail(`${astIdent.ident} undeclared`);
-        }
-        // 变量必须是左值
-        if (variable.name === null) {
+        // 赋值操作变量必须是左值
+        if (lhs.variable.name === null) {
             platform.programFail(`lvalue required`);
         }
 
-        rhs = this.evalExpression(astExpression);
-
-        if (assignToken === undefined) {
-            assignToken = Token.TokenAssign;
-        }
-
+        // 纯赋值操作单独处理
         if (assignToken === Token.TokenAssign) {
-            variable.assign(astIdent.accessIndexes, rhs);
+            lhs.variable.assign(lhs.accessIndexes, rhsElem);
             return {
                 astType: Ast.AstVariable,
-                value: variable
+                variable: lhs.variable,
+                accessIndexes: lhs.accessIndexes
             };
         }
+
         // 除了"="赋值以外，其他赋值类型，如"+=", ">>="等，要求右值必须为数值类型
-        if (!rhs.isNumericType()) {
+        if (!rhsElem.isNumericType()) {
             platform.programFail(`right hand side of "${Token.getTokenName(assignToken)}"
                                     must be a numeric value`);
         }
 
-        const n = rhs.getValue();
-        const num = new Number(n);
-        if (!num.isInteger()) {
-            platform.programFail(`integer value expected for RHS`);
+        // 进一步检查数据类型
+        switch (assignToken) {
+            case Token.TokenModulusAssign:
+            case Token.TokenShiftLeftAssign:
+            case Token.TokenShiftRightAssign:
+            case Token.TokenArithmeticAndAssign:
+            case Token.TokenArithmeticOrAssign:
+            case Token.TokenArithmeticExorAssign:
+                if (!rhsElem.isIntegerType()) {
+                    platform.programFail(`right hand side of "${Token.getTokenName(assignToken)}"
+                                            must be an integer`);
+                }
+            case Token.TokenMultiplyAssign:
+            case Token.TokenDivideAssign:
+                if (lhs.variable.isPtrType()) {
+                    platform.programFail(`left hand side of "${Token.getTokenName(assignToken)}"
+                                            must be numeric`);
+                }
+
+            default:
+                assert(false, `internal: evalAssignOperator(): Unexpected assignToken ${assignToken}`);
+                break;
         }
 
         switch (assignToken) {
             case Token.TokenAddAssign:
             case Token.TokenSubtractAssign:
-                if (variable.isPtrType()) {
-                    variable.handlePtrChange(astIdent.accessIndexes, n, assignToken);
-                    return {
-                        astType: Ast.AstVariable,
-                        value: variable
-                    };
+                if (lhs.variable.isPtrType()) {
+                    lhs.variable.handlePtrChange(lhs.accessIndexes, n, assignToken);
+                    break;
                 }
             case Token.TokenMultiplyAssign:
             case Token.TokenDivideAssign:
@@ -1006,22 +988,19 @@ class Evaluator {
             case Token.TokenArithmeticAndAssign:
             case Token.TokenArithmeticOrAssign:
             case Token.TokenArithmeticExorAssign:
-                if (!variable.isNumericType()) {
-                    platform.programFail(`left hand side of "${Token.getTokenName(assignToken)}"
-                                            must be a numeric value`);
-                }
+                const n = rhsElem.getValue();
+                lhs.variable.setValue(lhs.accessIndexes, n, assignToken);
                 break;
             default:
                 assert(false, `internal: evalAssignOperator(): Unexpected assignToken ${assignToken}`);
                 break;
         }
 
-        variable.setValue(astIdent.accessIndexes, n, assignToken);
         return {
             astType: Ast.AstVariable,
-            value: variable
+            variable: lhs.variable,
+            accessIndexes: lhs.accessIndexes
         };
-        */
     } // end of evalAssignOperator
 
     evalBlock(astBlock) {
@@ -1173,7 +1152,7 @@ class Evaluator {
         for (let v of astSwitch.cases) {
             if (!matched) {
                 let caseValue = this.evalExpression(v.expression);
-                matched = this.evalBinaryOperator(value, caseValue, Token.TokenEqual).value.getNumericValue();
+                matched = this.evalBinaryOperator(value, caseValue, Token.TokenEqual).variable.getValue();
             }
             if (matched) {
                 isDefault = false;
@@ -1430,7 +1409,7 @@ class Evaluator {
                 break;
             case Ast.AstReturn:
                 // todo
-                __returnValue = this.evalExpression(astNode.value);
+                __returnValue = this.evalExpressionRHS(astNode.value);
                 __controlStatus = ControlStatus.RETURN;
                 //platform.programFail(`return statement not within a function`);
                 break;

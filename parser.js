@@ -724,6 +724,9 @@ class Parser {
                 }
                 elementList.push(astIdent);
             } else if (token >= Token.TokenAssign && token <= Token.TokenArithmeticExorAssign) {
+                this.getToken();
+
+                // 对形如"*p = xxx"这样的左值进行处理
                 elementList = this.parseUnaryOperator(elementList);
                 if (elementList.length !== 1) {
                     platform.programFail(`lvalue required as left operand of assignment`);
