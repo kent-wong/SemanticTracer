@@ -322,8 +322,9 @@ class Variable {
     createElementVariable(indexes) {
         indexes = (indexes === undefined ? [] : indexes);
 
-        // 索引维度和变量维度相等，返回元素值
-        if (indexes.length === this.dataType.arrayIndexes.length) {
+        if (indexes.length !== this.dataType.arrayIndexes.length) {
+            assert(false, `internal: createElementVariable(): different index dimension`);
+        } else {
             const theType = {
                 baseType: this.dataType.baseType,
                 numPtrs: this.dataType.numPtrs,
@@ -336,6 +337,8 @@ class Variable {
             return theVariable;
         }
 
+
+        /*
         // 如果本变量是数组，并且指定的索引维度小于本数组维度，
         // 那么返回指针类型。计算原则如下：
         //      int *p;
@@ -365,6 +368,7 @@ class Variable {
 
         const newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
         return refValue.refTo.createElementVariable(newIndexes);
+        */
     }
 
     createElementAddressVariable(indexes) {

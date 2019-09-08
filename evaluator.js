@@ -120,8 +120,38 @@ class Evaluator {
         this.scopes.addIdent(astDecl.ident, variable);
     } // end of evalDeclaration
 
-    // 处理自增/自减运算
-    evalSelfOp(astIdent, isPostfix, isIncr) {
+    // 处理自增/自减运算，指针类型和数值类型分别处理
+    evalSelfOp(astOperand, isPostfix, isIncr) {
+        const n = (isIncr ? 1 : -1);
+        let varResult;
+
+        if (astOperand.variable.isPtrType()) {
+            if (isPostfix) {
+                varResult = astOperand.variable.createElementVariable(astOperand.accessIndexes);
+                astOperand.variable.handlePtrChange(astOperand.accessIndexes, n, Token.TokenIncrement);
+            } else {
+                astOperand.variable.handlePtrChange(astOperand.accessIndexes, n, Token.TokenIncrement);
+                varResult = astOperand.variable.createElementVariable(astOperand.accessIndexes);
+            }
+        } else if (variable.isNumericType()) {
+            if (isPostfix) {
+                varResult = astOperand.variable.createElementVariable(astOperand.accessIndexes);
+                astOperand.variable.setValueIncr(astOperand.accessIndexes, n);
+            } else {
+                astOperand.variable.setValueIncr(astOperand.accessIndexes, n);
+                varResult = astOperand.variable.createElementVariable(astOperand.accessIndexes);
+            }
+        } else {
+            if (isIncr) {
+                platform.programFail(`wrong type argument to increment operand`);
+            } else {
+                platform.programFail(`wrong type argument to decrement operand`);
+            }
+        }
+
+        return varResult;
+
+        /*
         let variable;
         let varResult;
 		let accessIndexes;
@@ -154,22 +184,23 @@ class Evaluator {
         }
 
         return varResult;
+        */
     }
 
-    evalPostfixIncr(astIdent) {
-        return this.evalSelfOp(astIdent, true, true);
+    evalPostfixIncr(astOperand) {
+        return this.evalSelfOp(astOperand, true, true);
     }
 
-    evalPostfixDecr(astIdent) {
-        return this.evalSelfOp(astIdent, true, false);
+    evalPostfixDecr(astOperand) {
+        return this.evalSelfOp(astOperand, true, false);
     }
 
-    evalPrefixIncr(astIdent) {
-        return this.evalSelfOp(astIdent, false, true);
+    evalPrefixIncr(astOperand) {
+        return this.evalSelfOp(astOperand, false, true);
     }
 
-    evalPrefixDecr(astIdent) {
-        return this.evalSelfOp(astIdent, false, false);
+    evalPrefixDecr(astOperand) {
+        return this.evalSelfOp(astOperand, false, false);
     }
 
     getVariable(name) {
@@ -181,7 +212,8 @@ class Evaluator {
     }
 
     // 取地址运算符
-    evalTakeAddress(astTakeAddress) {
+    evalTakeAddress(astOperand) {
+        /*
         const astIdent = astTakeAddress.astIdent;
 
         // 通过AST获取变量，此变量必须存在于当前有效的scopes中
@@ -197,9 +229,17 @@ class Evaluator {
         const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
         //console.log('accessIndexes:', accessIndexes);
         return variable.createElementAddressVariable(accessIndexes);
+        */
+        const varAddress = astOperand.variable.createElementAddressVariable(astOperand.accessIndexes);
+        return {
+            astType: Ast.AstVariable,
+            variable: varAddress,
+            accessIndexes: []
+        };
     }
 
-    evalTakeValue(astTakeValue) {
+    evalTakeValue(astOperand) {
+        /*
         const astIdent = astTakeValue.astIdent;
         let variable = this.getVariable(astIdent.ident);
         if (variable === null) {
@@ -221,9 +261,31 @@ class Evaluator {
         }
 
         return ptr.refTo.createElementVariable(ptr.indexes);
+        */
+
+        const ptr = astOperand.variable.getValue(astOperand.accessIndexes);
+        if (ptr === 0) {
+            platform.programFail(`dereferrence to a NULL pointer`);
+        }
+
+        // 取值操作返回左值
+        return {
+            astType: Ast.AstVariable,
+            variable: ptr.refTo,
+            accessIndexes: ptr.indexes
+        };
     }
 
-    evalTakeUMinus(astMinus) {
+    evalTakeUMinus(astOperand) {
+        const variable = astOperand.variable.createElementVariable(astOperand.accessIndexes);
+        if (!variable.isNumericTypeNonArray()) {
+            platform.programFail(`wrong type argument to unary minus`);
+        }
+        variable.setValueUMinus();
+
+        return variable;
+
+        /*
         const astIdent = astMinus.astIdent;
         let variable;
 
@@ -248,9 +310,16 @@ class Evaluator {
         }
 
         return variable;
+        */
     }
 
-    evalTakeNot(astNot) {
+    evalTakeNot(astOperand) {
+        // '!'操作符不关心操作数的具体类型，这里直接取值
+        const value = astOperand.variable.getValue(astOperand.accessIndexes);
+        const variable = Variable.createNumericVariable(BaseType.TypeInt, null, !val);
+        return variable;
+
+        /*
         const astIdent = astNot.astIdent;
         let variable;
         let val;
@@ -273,9 +342,19 @@ class Evaluator {
         }
 
         return Variable.createNumericVariable(BaseType.TypeInt, null, !val);
+        */
     }
 
-    evalTakeExor(astExor) {
+    evalTakeExor(astOperand) {
+        const variable = astOperand.variable.createElementVariable(astOperand.accessIndexes);
+        if (!variable.isNumericTypeNonArray()) {
+            platform.programFail(`wrong type argument to bit-complement`);
+        }
+        variable.setValueExor();
+
+        return variable;
+
+        /*
         const astIdent = astExor.astIdent;
         let variable;
 
@@ -299,6 +378,7 @@ class Evaluator {
         }
 
         return variable;
+        */
     }
 
     variableRefFromAstIdent(astIdent, autoFillIndexes) {
@@ -364,30 +444,6 @@ class Evaluator {
         }
     } // end of assertValidExpression
 
-	/*
-	// 将AstIdentifier和AstConstant转换成Variable，
-	// 包括单目操作符中的AstIdentifier和AstConstant
-	expressionConvert2Variable(astUnary) {
-		while (astUnary.astType !== Ast.AstIdentifier &&
-				 astUnary.astType !== Ast.AstConstant) {
-			astUnary = astUnary.astOperand;
-		}
-
-		let varRef;
-		let variable;
-		if (astUnary.astType === Ast.AstIdentifier) {
-			varRef = this.variableRefFromAstIdent(astUnary);
-		} else if (astUnary.token === Token.TokenIntegerConstant) {
-			variable = Variable.createNumericVariable(BaseType.TypeInt, null, astUnary.value);
-			varRef = this.variableRefFromVariable(variable, []);
-		} else if (astUnary.token === Token.TokenFPConstant) {
-			variable = Variable.createNumericVariable(BaseType.TypeFP, null, astUnary.value);
-			varRef = this.variableRefFromVariable(variable, []);
-		}
-
-		return varRef;
-	}
-	*/
 
     // 将表达式列表中的元素进行合法性检查和转换
     expressionMap(elementList) {
@@ -441,6 +497,7 @@ class Evaluator {
                         assert(false, `Unrecognized operator type ${astElement.token}`);
                 }
             } else {
+                /*
 				switch (astElement.astType) {
 					case Ast.AstIdentifier:
 					case Ast.AstPostfixOp:
@@ -455,6 +512,7 @@ class Evaluator {
 					default:
 						break;
 				}
+                */
 			}
 
             expressionList.push(newElement);
@@ -490,12 +548,14 @@ class Evaluator {
                             platform.programFail(`invalid expression`);
                         }
 
-                        const boolValue = stack[0].getNumericValue();
-                        if (boolValue === null) {
+                        const value = stack[0].variable.getValue(stack[0].accessIndexes);
+                        /*
+                        if (value === null) {
                             platform.programFail('expression before "||" can NOT be evaluated to boolean');
                         }
+                        */
 
-                        if (boolValue !== 0) {
+                        if (value) {
                             return stack[0];
                         }
                     }
@@ -528,9 +588,7 @@ class Evaluator {
         assert(stack.length % 2 === 1, `internal error: stack.length is even`);
 
         if (stack.length === 1) {
-            let elem = stack.pop();
-            elem = this.evalUnaryOperator(elem);
-            stack.push(elem);
+            stack[0] = this.evalUnaryOperator(stack[0]);
             return stack;
         }
 
@@ -617,7 +675,7 @@ class Evaluator {
             // 先处理各类赋值操作
             if (astExpr.elementList.length === 1 &&
                   astExpr.elementList[0].astType === Ast.AstAssign) {
-                let astAssign = astExpr.elementList[0];
+                const astAssign = astExpr.elementList[0];
                 result = this.evalAssignOperator(astAssign.lhs, astAssign.rhs, astAssign.assignToken);    
             } else {
                 // 再处理三目运算符
@@ -706,55 +764,40 @@ class Evaluator {
                 }
 				break;
 			case Ast.AstTakeAddress:
+				if (astUnary.astOperand.astType !== Ast.AstVariable) {
+					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+				}
 				varRef = this.evalTakeAddress(astUnary.astOperand);
 				break;
 			case Ast.AstTakeValue:
+				if (astUnary.astOperand.astType !== Ast.AstVariable) {
+					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+				}
 				varRef = this.evalTakeValue(astUnary.astOperand);
 				break;
 			case Ast.AstUMinus:
+				if (astUnary.astOperand.astType !== Ast.AstVariable) {
+					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+				}
+				varRef = this.evalTakeUMinus(astUnary.astOperand);
 				break;
 			case Ast.AstUnaryNot:
+				if (astUnary.astOperand.astType !== Ast.AstVariable) {
+					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+				}
+				varRef = this.evalTakeNot(astUnary.astOperand);
 				break;
 			case Ast.AstUnaryExor:
+				if (astUnary.astOperand.astType !== Ast.AstVariable) {
+					astUnary.astOperand = this.evalUnaryOperator(astUnary.astOperand);
+				}
+				varRef = this.evalTakeExor(astUnary.astOperand);
 				break;
 			default:
 				break;
 		}
 
 		return varRef;
-
-		/*
-        let result = null;
-        switch (ast.astType) {
-            case Ast.AstPrefixOp:
-                if (ast.token === Token.TokenIncrement) {
-                    result = this.evalPrefixIncr(ast.astIdent);
-                } else {
-                    result = this.evalPrefixDecr(ast.astIdent);
-                }
-                break;
-            case Ast.AstPostfixOp:
-                if (ast.token === Token.TokenIncrement) {
-                    result = this.evalPostfixIncr(ast.astIdent);
-                } else {
-                    result = this.evalPostfixDecr(ast.astIdent);
-                }
-                break;
-            case Ast.AstFuncCall:
-                result = this.evalFuncCall(ast);
-                break;
-            case Ast.AstExpression:
-                result = this.evalExpression(ast);
-                break;
-            default:
-                return ast;
-        }
-
-        return {
-            astType: Ast.AstVariable,
-            value: result
-        };
-		*/
     } // end of evalUnaryOperator
 
     /* 注意：所有eval*Operator函数的返回值都为：
@@ -770,41 +813,21 @@ class Evaluator {
         let baseType;
         let hasFP = false;
 
-        if (lhs.astType === Ast.AstVariable) {
-            val1 = lhs.value.getNumericValue();
-            if (val1 === null) {
-                platform.programFail(`left side of operation is NOT a valid number`);
-            }
-            if (lhs.value.dataType.baseType === BaseType.TypeFP) {
-                hasFP = true;
-            }
-        } else if (lhs.astType === Ast.AstConstant) {
-            if (lhs.token !== Token.TokenIntegerConstant && lhs.token !== Token.TokenFPConstant) {
-                platform.programFail(`expect a numeric constant or value`);
-            }
-            val1 = lhs.value;
-            if (lhs.token === Token.TokenFPConstant) {
-                hasFP = true;
-            }
+        if (!lhs.variable.isNumericType()) {
+            platform.programFail(`left side of operation is NOT a valid number`);
         }
+        if (lhs.variable.dataType.baseType === BaseType.TypeFP) {
+            hasFP = true;
+        }
+        val1 = lhs.variable.getValue(lhs.variable.accessIndexes);
 
-        if (rhs.astType === Ast.AstVariable) {
-            val2 = rhs.value.getNumericValue();
-            if (val2 === null) {
-                platform.programFail(`right side of operation is NOT a valid number`);
-            }
-            if (rhs.value.dataType.baseType === BaseType.TypeFP) {
-                hasFP = true;
-            }
-        } else if (rhs.astType === Ast.AstConstant) {
-            if (rhs.token !== Token.TokenIntegerConstant && rhs.token !== Token.TokenFPConstant) {
-                platform.programFail(`expect a numeric constant or value`);
-            }
-            val2 = rhs.value;
-            if (rhs.token === Token.TokenFPConstant) {
-                hasFP = true;
-            }
+        if (!rhs.variable.isNumericType()) {
+            platform.programFail(`right side of operation is NOT a valid number`);
         }
+        if (rhs.variable.dataType.baseType === BaseType.TypeFP) {
+            hasFP = true;
+        }
+        val2 = rhs.variable.getValue(rhs.variable.accessIndexes);
 
         switch (opToken) {
             case Token.TokenAsterisk: // 乘法
@@ -917,11 +940,17 @@ class Evaluator {
         const variable = Variable.createNumericVariable(baseType, null, result);
         return {
             astType: Ast.AstVariable,
-            value: variable
+            variable: variable,
+            accessIndexes: []
         };
     } // end of evalBinaryOperator
 
     evalAssignOperator(astIdent, astExpression, assignToken) {
+        const lhs = this.evalUnaryOperator(astIdent);
+        const rhs = this.evalExpression(astExpression);
+
+
+        /*
         let rhs;
         let ret;
 
@@ -992,6 +1021,7 @@ class Evaluator {
             astType: Ast.AstVariable,
             value: variable
         };
+        */
     } // end of evalAssignOperator
 
     evalBlock(astBlock) {

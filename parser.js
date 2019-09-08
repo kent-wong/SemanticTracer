@@ -588,77 +588,8 @@ class Parser {
         };
     } // end of parseTernaryExpression
 
-    parseExpression(...stopAt) {
-        if (stopAt.length === 0) {
-            // 表达式默认以分号结尾
-            stopAt.push(Token.TokenSemicolon);
-        }
-
-        let token = this.peekToken();
-        let value = null;
-        let elementList = [];
-        let astResult = null;
-        let astNextExpression = null;
-
-        token = this.peekToken();
-        do {
-            if (this.lexer.peekIfMatch(Token.TokenIdentifier, Token.TokenOpenParenth)) {
-                // 函数调用
-                const astFuncCall = this.parseFuncCall();
-                elementList.push(astFuncCall);
-            } else if (token === Token.TokenIdentifier) { // 变量
-                const astIdent = this.retrieveIdentAst();
-                if (astIdent === null) {
-                    platform.programFail(`expect an identifier here`);
-                }
-                // 赋值语句单独处理
-                token = this.peekToken();
-                if (token >= Token.TokenAssign && token <= Token.TokenArithmeticExorAssign) {
-                    this.getToken();
-                    astResult = this.parseAssignment(astIdent, token);
-                    elementList.push(astResult);
-                } else {
-                    elementList.push(astIdent);
-                }
-            } else if (token >= Token.TokenQuestionMark && token <= Token.TokenCast) { // 操作符
-                const astOperator = {
-                    astType: Ast.AstOperator,
-                    token: token
-                };
-                elementList.push(astOperator);
-                this.getToken();
-            } else if (token >= Token.TokenIntegerConstant && token <= Token.TokenCharacterConstant) {
-                ({token, value} = this.getTokenInfo());
-                const astConstant = {
-                    astType: Ast.AstConstant,
-                    token: token,
-                    value: value
-                };
-                elementList.push(astConstant);
-            } else if (this.lexer.forwardIfMatch(Token.TokenOpenParenth)) { // 圆括号中的子表达式
-                astResult = this.parseExpression(Token.TokenCloseParenth);
-                elementList.push(astResult);
-                this.getToken();
-            } else if (this.lexer.forwardIfMatch(Token.TokenComma)) {
-                // 如果逗号不是解析停止符号，将产生表达式AST链表
-                astNextExpression = this.parseExpression(...stopAt);
-                break; // 跳出
-            } else if (token === Token.TokenSemicolon) { 
-                // 表达式解析不能跨越分号
-                // 如果分号在指定的停止符号之前出现，说明这是错误的语法
-                if (!(stopAt.includes(Token.TokenSemicolon))) {
-                    platform.programFail(`expected '${Token.getTokenName(stopAt[0])}' before ';' token `);
-                }
-            } else if (token === Token.TokenEOF) {
-                platform.programFail(`incomplete expression`);
-            } else {
-                platform.programFail(`expression: unrecognized token type ${Token.getTokenName(token)}`);
-            }
-
-            token = this.peekToken();
-        } while (!stopAt.includes(token));
-    
-		// 下面处理单目运算符，C语言的单目运算符结合方向都是从右到左
+    // 处理单目运算符，C语言的单目运算符结合方向都是从右到左
+    parseUnaryOperator(elementList) {
         // 先单独处理单目运算符++, --, 因为这两种运算符可以有前缀和后缀两种形式
 		// 经过下面的处理后，后缀形式的++和--将被消除，便于后续处理其他单目运算符
         elementList.forEach((v, idx, arr) => {
@@ -763,10 +694,95 @@ class Parser {
                 arr[nextIdx] = undefined;
             }
         });
+
         elementList = elementList.reverse().filter(v => {return v !== undefined});
+        return elementList;
+    } // end of parseUnaryOperator
+
+    parseExpression(...stopAt) {
+        if (stopAt.length === 0) {
+            // 表达式默认以分号结尾
+            stopAt.push(Token.TokenSemicolon);
+        }
+
+        let token = this.peekToken();
+        let value = null;
+        let elementList = [];
+        let astResult = null;
+        let astNextExpression = null;
+
+        token = this.peekToken();
+        do {
+            if (this.lexer.peekIfMatch(Token.TokenIdentifier, Token.TokenOpenParenth)) {
+                // 函数调用
+                const astFuncCall = this.parseFuncCall();
+                elementList.push(astFuncCall);
+            } else if (token === Token.TokenIdentifier) { // 变量
+                const astIdent = this.retrieveIdentAst();
+                if (astIdent === null) {
+                    platform.programFail(`expect an identifier here`);
+                }
+                elementList.push(astIdent);
+            } else if (token >= Token.TokenAssign && token <= Token.TokenArithmeticExorAssign) {
+                elementList = this.parseUnaryOperator(elementList);
+                if (elementList.length !== 1) {
+                    platform.programFail(`lvalue required as left operand of assignment`);
+                }
+
+                // 赋值语句
+                const astAssign = {
+                    astType: Ast.AstAssign,
+                    lhs: elementList[0],
+                    rhs: this.parseExpression(Token.TokenComma, Token.TokenSemicolon),
+                    assignToken: token
+                };
+                elementList = [];
+                elementList.push(astAssign);
+            } else if (token >= Token.TokenQuestionMark && token <= Token.TokenCast) { // 操作符
+                const astOperator = {
+                    astType: Ast.AstOperator,
+                    token: token
+                };
+                elementList.push(astOperator);
+                this.getToken();
+            } else if (token >= Token.TokenIntegerConstant && token <= Token.TokenCharacterConstant) {
+                ({token, value} = this.getTokenInfo());
+                const astConstant = {
+                    astType: Ast.AstConstant,
+                    token: token,
+                    value: value
+                };
+                elementList.push(astConstant);
+            } else if (this.lexer.forwardIfMatch(Token.TokenOpenParenth)) { // 圆括号中的子表达式
+                astResult = this.parseExpression(Token.TokenCloseParenth);
+                elementList.push(astResult);
+                this.getToken();
+            } else if (this.lexer.forwardIfMatch(Token.TokenComma)) {
+                // 如果逗号不是解析停止符号，将产生表达式AST链表
+                astNextExpression = this.parseExpression(...stopAt);
+                break; // 跳出
+            } else if (token === Token.TokenSemicolon) { 
+                // 表达式解析不能跨越分号
+                // 如果分号在指定的停止符号之前出现，说明这是错误的语法
+                if (!(stopAt.includes(Token.TokenSemicolon))) {
+                    platform.programFail(`expected '${Token.getTokenName(stopAt[0])}' before ';' token `);
+                }
+            } else if (token === Token.TokenEOF) {
+                platform.programFail(`incomplete expression`);
+            } else {
+                platform.programFail(`expression: unrecognized token type ${Token.getTokenName(token)}`);
+            }
+
+            token = this.peekToken();
+        } while (!stopAt.includes(token));
+    
+        // 处理单目运算符
+        elementList = this.parseUnaryOperator(elementList);
 
         // 处理三目运算符
         elementList = this.parseTernaryOperator(elementList);
+
+        // 注意：此时elementList中只剩下二元运算符(或者单个元素)，便于后续计算整个表达式的值
 
         // 将表达式元素打包为一个AST
         const astExpression = {
