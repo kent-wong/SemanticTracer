@@ -1021,7 +1021,6 @@ class Evaluator {
             if (__controlStatus === ControlStatus.CONTINUE) {
                 // 在循环中终结continue
                 __controlStatus = null;
-                break ;
             }
             if (__controlStatus === ControlStatus.BREAK) {
                 // 在循环中终结break
@@ -1040,7 +1039,6 @@ class Evaluator {
             if (__controlStatus === ControlStatus.CONTINUE) {
                 // 在循环中终结continue
                 __controlStatus = null;
-                break ;
             }
             if (__controlStatus === ControlStatus.BREAK) {
                 // 在循环中终结break
@@ -1069,7 +1067,6 @@ class Evaluator {
             if (__controlStatus === ControlStatus.CONTINUE) {
                 // 在循环中终结continue
                 __controlStatus = null;
-                break ;
             }
             if (__controlStatus === ControlStatus.BREAK) {
                 // 在循环中终结break
@@ -1086,20 +1083,6 @@ class Evaluator {
         this.scopes.popScope();
     }
 
-    /*
-    const astSwitch = {
-        astType: Ast.AstSwitch,
-        value: null, // astExpression
-        cases: [], // astExpression
-        default: null, // astBlock
-        pushCase: function(expression, block) {
-            this.cases.push({
-                expression: expression, // astExpression
-                block: block // astBlock
-            });
-        }
-    };
-    */
     evalSwitch(astSwitch) {
         let matched = false;
         let isDefault = true;
