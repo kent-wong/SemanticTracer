@@ -1011,6 +1011,8 @@ class Evaluator {
     }
 
     evalWhile(astWhile) {
+        this.scopes.pushScope(Ast.AstWhile);
+
         while (true) {
             const condition = this.evalExpressionBoolean(astWhile.conditional);
             if (!condition) {
@@ -1031,9 +1033,13 @@ class Evaluator {
                 return ;
             }
         }
+
+        this.scopes.popScope();
     }
 
     evalDoWhile(astDoWhile) {
+        this.scopes.pushScope(Ast.AstDoWhile);
+
         while (true) {
             this.evalBody(astWhile.body);
             if (__controlStatus === ControlStatus.CONTINUE) {
@@ -1054,10 +1060,13 @@ class Evaluator {
                 break;
             }
         }
+
+        this.scopes.popScope();
     }
 
     evalFor(astFor) {
         this.scopes.pushScope(Ast.AstFor);
+
         if (astFor.initial !== null) {
             this.evalDispatch(astFor.initial);
         }
