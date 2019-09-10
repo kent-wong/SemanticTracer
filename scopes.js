@@ -72,12 +72,38 @@ class Scopes {
         return this.global.getIdent(ident);
     }
 
+    findType(type, onlyGlobal) {
+        if (onlyGlobal === undefined) {
+            onlyGlobal = false;
+        }
+
+        if (!onlyGlobal && this.locals.length > 0) {
+            let result = null;
+            for (let scope of this.locals) {
+                result = scope.getType(type);
+                if (result !== null) {
+                    return result;
+                }
+            }
+        }
+
+        return this.global.getType(type);
+    }
+
     findGlobalIdent(ident) {
         return this.findIdent(ident, true);
     }
 
+    findGlobalType(type) {
+        return this.findType(type, true);
+    }
+
     addIdent(ident, value) {
         this.current.setIdent(ident, value);
+    }
+
+    addType(type, value) {
+        this.current.setType(type, value);
     }
 
     isInGlobalScope() {

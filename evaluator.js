@@ -67,6 +67,9 @@ class Evaluator {
         this.scopes = new Scopes();
     }
 
+    checkRedeclaration(ident) {
+    }
+
     evalDeclaration(astDecl) {
         assert(astDecl.astType === Ast.AstDeclaration,
                     `internal error: evalDeclaration(): param is NOT AstDeclaration`);
@@ -79,14 +82,9 @@ class Evaluator {
         }
 
         const dataType = Variable.createDataType(astDecl.dataType.astBaseType,
-                                                astDecl.dataType.numPtrs,
-                                                astDecl.dataType.ident);
+                                                   astDecl.dataType.numPtrs,
+                                                   astDecl.dataType.ident);
         dataType.arrayIndexes = astDecl.arrayIndexes.map(this.evalExpressionInt, this);
-        /*
-        for (let idx of astDecl.arrayIndexes) {
-            dataType.arrayIndexes.push(this.evalExpressionInt(idx));
-        }
-        */
 
         // 创建变量
         const variable = new Variable(dataType, astDecl.ident, null);
@@ -1165,13 +1163,17 @@ class Evaluator {
 
         // 检查是否有重名的函数/变量存在
         if (this.scopes.findGlobalIdent(astFuncDef.name) !== null) {
-            platform.programFail(`redeclaration of ${astFuncDef.name}`);
+            platform.programFail(`name '${astFuncDef.name}' has been declared for variable`);
+        }
+
+        if (this.scopes.findGlobalType(astFuncDef.name) !== null) {
+            platform.programFail(`name '${astFuncDef.name}' has been declared`);
         }
 
         // 评估返回类型
         const returnType = Variable.createDataType(astFuncDef.returnType.astBaseType,
-                                               astFuncDef.returnType.numPtrs,
-                                               astFuncDef.returnType.ident);
+                                                   astFuncDef.returnType.numPtrs,
+                                                   astFuncDef.returnType.ident);
         astFuncDef.returnType = returnType;
 
         // evaluate parameters
@@ -1181,8 +1183,8 @@ class Evaluator {
         let paramVariable;
         for (let param of astFuncDef.params) {
             paramType = Variable.createDataType(param.paramType.astBaseType,
-                                               param.paramType.numPtrs,
-                                               param.paramType.ident);
+                                                param.paramType.numPtrs,
+                                                param.paramType.ident);
             paramIndexes = [];
             for (let idxExpression of param.arrayIndexes) {
                 paramIndexes.push(this.evalExpressionInt(idxExpression));
@@ -1199,7 +1201,7 @@ class Evaluator {
         astFuncDef.params = varParams;
 
         // 加入全局scope
-        this.scopes.addIdent(astFuncDef.name, astFuncDef);
+        this.scopes.addType(astFuncDef.name, astFuncDef);
         return ;
     } // end of evalFuncDef()
 

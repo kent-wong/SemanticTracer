@@ -252,8 +252,7 @@ class Variable {
 
             variable = refValue.refTo;
             if (variable.dataType.arrayIndexes.length === 0) {
-                platform.programFail(`semantic error:
-                                        attempts redirecting pointer to point to unknown place`);
+                platform.programFail(`semantic error: attempts redirecting pointer to point to unknown place`);
             }
 
             newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
@@ -304,8 +303,7 @@ class Variable {
 
             variable = refValue.refTo;
             if (variable.dataType.arrayIndexes.length === 0) {
-                platform.programFail(`semantic error:
-                                        attempts redirecting pointer to point to unknown place`);
+                platform.programFail(`semantic error: attempts redirecting pointer to point to unknown place`);
             }
 
             newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
@@ -610,12 +608,10 @@ class Variable {
         newPosition += n;
 
         if (newPosition >= numTotalElements) {
-            platform.programFail(`semantic error:
-                                    increase pointer by ${n} will overflow the array boundary`);
+            platform.programFail(`semantic error: increase pointer by ${n} will overflow the array boundary`);
         }
         if (newPosition < 0) {
-            platform.programFail(`semantic error:
-                                    decrease pointer by ${n} will underflow the array boundary`);
+            platform.programFail(`semantic error: decrease pointer by ${n} will underflow the array boundary`);
         }
 
         // 计算新的索引
