@@ -1194,8 +1194,8 @@ class Evaluator {
             paramIndexes = [];
             for (let idxExpression of param.arrayIndexes) {
                 if (idxExpression === null) {
-                    assert(param.arrayIndexes.length === 0, `internal: evalFuncDef(): empty-indexed array has multiple dimensions`);
-                    paramType.dataType.numPtrs ++;
+                    assert(param.arrayIndexes.length === 1, `internal: evalFuncDef(): empty-indexed array has multiple dimensions`);
+                    paramType.numPtrs ++;
                 } else {
                     paramIndexes.push(this.evalExpressionInt(idxExpression));
                 }
@@ -1272,16 +1272,17 @@ class Evaluator {
         for (let i = 0; i < varArgs.length; i ++) {
             varParamVariable = astFuncDef.params[i];
             varArg = varArgs[i];
-            varArgVariable = varArg.variable;
 
             // 检查形参是否为数组
             // 注意：这里要单独处理，因为通常情况下不能对数组进行赋值
             if (varParamVariable.dataType.arrayIndexes.length !== 0) {
                 // 检查实参是否为对数组的引用
                 if (varArg.arrayRef) {
-                    varArg = varArg.variable.values.refTo;
-                    varArgVariable = varArg.variable;
+                    varArgVariable = varArg.variable.values.refTo;
+                } else {
+                    platform.programFail(`argument ${i} needs to be an array`);
                 }
+
                 if (varParamVariable.dataType.arrayIndexes.length !== varArgVariable.dataType.arrayIndexes.length) {
                     platform.programFail(`argument ${i} has different dimension as corresponding parameter`);
                 }
@@ -1294,6 +1295,7 @@ class Evaluator {
                 const varAlias = varArgVariable.createAlias(varParamVariable.name);
                 this.scopes.addIdent(varAlias.name, varAlias);
             } else {
+                varArgVariable = varArg.variable.createElementVariable(varArg.accessIndexes);
                 varParamVariable.assign([], varArgVariable);
                 this.scopes.addIdent(varParamVariable.name, varParamVariable);
             }
@@ -1314,7 +1316,12 @@ class Evaluator {
         // 弹出调用栈
         this.scopes.popScope();
 
-        return retValue;
+        return {
+            astType: Ast.AstVariable,
+            variable: retValue,
+            accessIndexes: [],
+            arrayRef: false
+        };
     }
 
     evalComposite(astComposite) {
