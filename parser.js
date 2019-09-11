@@ -1092,15 +1092,20 @@ class Parser {
 
             // 处理数组下标
             let firstParam = true;
+            let nullIndex = false;
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
                 if (this.lexer.forwardIfMatch(Token.TokenRightSquareBracket)) {
                     // 允许"func(int a[])"这种空索引作为参数
-                    // 注意：只允许第一级索引为空，例如"func(int a[][])"是不允许的
+                    // 注意：只允许一维数组使用这种简化语法，多维数组必须完整指定索引值，例如"func(int a[][])"是不允许的
                     if (!firstParam) {
-                        platform.programFail(`declaration of '${paramName}' as multidimensional array must have bounds for all dimensions except the first`);
+                        platform.programFail(`declaration of '${paramName}' as multidimensional array must have bounds for all dimensions`);
                     }
                     astParam.arrayIndexes.push(null);
+                    nullIndex = true;
                 } else {
+                    if (nullIndex) {
+                        platform.programFail(`declaration of '${paramName}' as multidimensional array must have bounds for all dimensions`);
+                    }
                     let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
                     astParam.arrayIndexes.push(astIndex);
                     this.getToken();

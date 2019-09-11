@@ -318,18 +318,19 @@ class Evaluator {
         };
     }
 
-    variableRefFromAstIdent(astIdent, autoFillIndexes) {
+    variableRefFromAstIdent(astIdent) {
         let variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
 
         let accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-		const varRef = variable.createVariableRef(accessIndexes, autoFillIndexes);
+		const varRef = variable.createVariableRef(accessIndexes);
 		return {
 			astType: Ast.AstVariable,
 			variable: varRef.variable,
-			accessIndexes: varRef.accessIndexes
+			accessIndexes: varRef.accessIndexes,
+            arrayRef: varRef.arrayRef
 		};
     }
 
@@ -354,7 +355,8 @@ class Evaluator {
 		return {
 			astType: Ast.AstVariable,
 			variable: varRef.variable,
-			accessIndexes: varRef.accessIndexes
+			accessIndexes: varRef.accessIndexes,
+            arrayRef: varRef.arrayRef
 		};
 	}
 
@@ -870,6 +872,10 @@ class Evaluator {
     evalAssignOperator(astIdent, astExpression, assignToken) {
         assignToken = (assignToken === undefined ? Token.TokenAssign : assignToken);
         const lhs = this.evalUnaryOperator(astIdent);
+        if (lhs.arrayRef) {
+            platform.programFail(`can NOT assign to an array`);
+        }
+
         const rhs = this.evalExpression(astExpression);
         const rhsElem = rhs.variable.createElementVariable(rhs.accessIndexes);
 
@@ -1187,7 +1193,12 @@ class Evaluator {
                                                 param.paramType.ident);
             paramIndexes = [];
             for (let idxExpression of param.arrayIndexes) {
-                paramIndexes.push(this.evalExpressionInt(idxExpression));
+                if (idxExpression === null) {
+                    assert(param.arrayIndexes.length === 0, `internal: evalFuncDef(): empty-indexed array has multiple dimensions`);
+                    paramType.dataType.numPtrs ++;
+                } else {
+                    paramIndexes.push(this.evalExpressionInt(idxExpression));
+                }
             }
             paramType.arrayIndexes = paramIndexes;
 
@@ -1219,7 +1230,7 @@ class Evaluator {
     */
     evalFuncCall(astFuncCall) {
         // 检查函数是否已经定义
-        const astFuncDef = this.scopes.findGlobalIdent(astFuncCall.name);
+        const astFuncDef = this.scopes.findGlobalType(astFuncCall.name);
         if (astFuncDef === null) {
             platform.programFail(`function ${astFuncCall.name} is NOT defined`);
         }
@@ -1255,32 +1266,36 @@ class Evaluator {
         this.scopes.pushScope(Ast.AstFuncCall);
 
         // 用实参替换形参
-        let varParam;
+        let varParamVariable;
         let varArg;
+        let varArgVariable;
         for (let i = 0; i < varArgs.length; i ++) {
-            varParam = astFuncDef.params[i];
-            varArg = astFuncCall.args[i];
+            varParamVariable = astFuncDef.params[i];
+            varArg = varArgs[i];
+            varArgVariable = varArg.variable;
 
             // 检查形参是否为数组
             // 注意：这里要单独处理，因为通常情况下不能对数组进行赋值
-            if (varParam.dataType.arrayIndexes.length !== 0) {
-                if (varParam.dataType.arrayIndexes.length !== varArg.dataType.arrayIndexes.length) {
+            if (varParamVariable.dataType.arrayIndexes.length !== 0) {
+                // 检查实参是否为对数组的引用
+                if (varArg.arrayRef) {
+                    varArg = varArg.variable.values.refTo;
+                    varArgVariable = varArg.variable;
+                }
+                if (varParamVariable.dataType.arrayIndexes.length !== varArgVariable.dataType.arrayIndexes.length) {
                     platform.programFail(`argument ${i} has different dimension as corresponding parameter`);
                 }
-                for (let dim = 0; dim < varParam.dataType.arrayIndexes.length; dim ++) {
-                    if (dim == 0 && varParam.dataType.arrayIndexes[dim] === 0) {
-                        continue;
-                    }
-                    if (varParam.dataType.arrayIndexes[dim] !== varArg.dataType.arrayIndexes[dim]) {
+                for (let dim = 0; dim < varParamVariable.dataType.arrayIndexes.length; dim ++) {
+                    if (varParamVariable.dataType.arrayIndexes[dim] !== varArgVariable.dataType.arrayIndexes[dim]) {
                         platform.programFail(`argument ${i} has different array definition as corresponding parameter`);
                     }
                 }
 
-                const varAlias = varArg.createAlias(varParam.name);
+                const varAlias = varArgVariable.createAlias(varParamVariable.name);
                 this.scopes.addIdent(varAlias.name, varAlias);
             } else {
-                varParam.assign([], varArg);
-                this.scopes.addIdent(varParam.name, varParam);
+                varParamVariable.assign([], varArgVariable);
+                this.scopes.addIdent(varParamVariable.name, varParamVariable);
             }
 
         }

@@ -206,13 +206,14 @@ class Variable {
         };
     }
 
-	createVariableRef(indexes, autoFillIndexes, noFillMsg) {
+	createVariableRef(indexes) {
         indexes = (indexes === undefined ? [] : indexes);
-        autoFillIndexes = (autoFillIndexes === undefined ? false : autoFillIndexes);
 
         let variable = this;
         let newIndexes = indexes;
+        let arrayRef = false;
 
+        /*
         if (indexes.length < this.dataType.arrayIndexes.length && !autoFillIndexes) {
             if (noFillMsg) {
                 platform.programFail(noFillMsg);
@@ -220,22 +221,26 @@ class Variable {
                 platform.programFail(`insufficient indexes`);
             }
         }
+        */
 
         if (indexes.length === this.dataType.arrayIndexes.length) {
 			/* use default value */
         } else if (indexes.length < this.dataType.arrayIndexes.length) {
-			// 如果本变量是数组，并且指定的索引维度小于本数组维度，
+			// 如果本变量是数组，并且指定的索引维度是0
 			// 那么返回指针类型。计算原则如下：
 			//      int *p;
 			//      int array[2][3];
 			//      p = array       --->  p = &array[0][0]
-			//      p = array[0]    --->  p = &array[0][0]
-			//      p = array[1]    --->  p = &array[1][0]
+            if (indexes.length !== 0) {
+                // 索引维度不为0，则提示维度不足
+                platform.programFail(`insufficient indexes`);
+            }
             newIndexes = indexes.slice();
             newIndexes.length = this.dataType.arrayIndexes.length;
-            newIndexes.fill(0, indexes.length);
+            newIndexes.fill(0, 0);
             variable = this.createElementPointerVariable(newIndexes);
 			newIndexes = [];
+            arrayRef = true;
         } else {
             // 指定的索引维度大于本变量的数组维度
             // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
@@ -260,11 +265,13 @@ class Variable {
 
         return {
             variable: variable,
-            accessIndexes: newIndexes
+            accessIndexes: newIndexes,
+            arrayRef: arrayRef
         };
 
 	}
 
+    /*
     getReferrence(indexes, autoFillIndexes, noFillMsg) {
         indexes = (indexes === undefined ? [] : indexes);
         autoFillIndexes = (autoFillIndexes === undefined ? false : autoFillIndexes);
@@ -315,6 +322,7 @@ class Variable {
 			filled: filled
         };
     }
+    */
 
     // 创建一个variable，以指定的元素为其内容
     createElementVariable(indexes) {
@@ -675,13 +683,11 @@ class Variable {
             return this.assignToPtr(indexes, rhsElem);
         } else {
             if (rhsElem.isPtrType()) {
-                platform.programFail(`
-                    Can Not assign a pointer to ${BaseType.getTypeName(this.dataType.baseType)}`);
+                platform.programFail(`Can Not assign a pointer to ${BaseType.getTypeName(this.dataType.baseType)}`);
             }
             
             if (rhsElem.isArrayType()) {
-                platform.programFail(`
-                    Can Not assign an array to ${BaseType.getTypeName(this.dataType.baseType)}`);
+                platform.programFail(`Can Not assign an array to ${BaseType.getTypeName(this.dataType.baseType)}`);
             }
 
             if (rhsElem.isNumericType()) {
