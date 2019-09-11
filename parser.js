@@ -539,7 +539,7 @@ class Parser {
             elem = elementList.shift();
             if (elem.astType === Ast.AstOperator) {
                 if (elem.token === Token.TokenQuestionMark) {
-                    elem = this.parseTernaryExpression(curExpr, elementList);
+                    elem = this.parseTernaryExpression(curExpr.slice(), elementList);
                     curExpr.splice(0); // 清空当前表达式列表
                 } else if (elem.token === Token.TokenColon) {
                     if (hasColon) {
@@ -1155,7 +1155,7 @@ class Parser {
             astFuncDef.body = this.parseBody();
         } else if (token === Token.TokenSemicolon) {
             // 只是函数声明，没有函数体
-            astFuncDef.body = null;
+            astFuncDef.body = undefined;
             this.getToken();
         } else {
             platform.programFail(`expected ';' or '{' after ')'`);

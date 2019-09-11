@@ -607,7 +607,7 @@ class Evaluator {
             } else {
                 // 再处理三目运算符
                 while (astExpr.elementList.length === 1 &&
-                      astExpr.elementList[0].astType === Ast.AstTernary) {
+                       astExpr.elementList[0].astType === Ast.AstTernary) {
                     let astTernary = astExpr.elementList[0];
                     let condition = this.evalExpressionBoolean(astTernary.conditional);
                     astExpr.elementList = condition ? astTernary.expr1.elementList :
@@ -1234,7 +1234,7 @@ class Evaluator {
         if (astFuncDef === null) {
             platform.programFail(`function ${astFuncCall.name} is NOT defined`);
         }
-        if (astFuncDef.body === null) {
+        if (astFuncDef.body === undefined) {
             // 函数只声明了，但是没定义
             platform.programFail(`function ${astFuncCall.name} declared but NOT defined`);
         }
@@ -1306,7 +1306,7 @@ class Evaluator {
         this.evalBody(astFuncDef.body);
 
         // 查看返回值
-        let retValue = new Variable(astFuncDef.returnType, null, null);
+        let retValue = new Variable(astFuncDef.returnType, null, 0);
         if (__controlStatus === ControlStatus.RETURN) {
             retValue.assign([], __returnValue);
             __returnValue = null;
@@ -1319,8 +1319,7 @@ class Evaluator {
         return {
             astType: Ast.AstVariable,
             variable: retValue,
-            accessIndexes: [],
-            arrayRef: false
+            accessIndexes: []
         };
     }
 
