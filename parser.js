@@ -377,6 +377,9 @@ class Parser {
 
             // 处理数组下标
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
+                if (this.lexer.forwardIfMatch(Token.TokenRightSquareBracket)) {
+                    platform.programFail(`array size missing in '${astDecl.ident}'`);
+                }
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
                 astDecl.arrayIndexes.push(astIndex);
                 this.getToken();
@@ -1082,16 +1085,27 @@ class Parser {
 
             let {token, value: paramName} = this.getTokenInfo();
             if (token !== Token.TokenIdentifier) {
-                platform.programFail(`expected parameter name, but got token ${Token.getTokenName(token)}`);
+                platform.programFail(`expect parameter name, but got token ${Token.getTokenName(token)}`);
             }
 
             astParam.ident = paramName;
 
             // 处理数组下标
+            let firstParam = true;
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
-                let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
-                astParam.arrayIndexes.push(astIndex);
-                this.getToken();
+                if (this.lexer.forwardIfMatch(Token.TokenRightSquareBracket)) {
+                    // 允许"func(int a[])"这种空索引作为参数
+                    // 注意：只允许第一级索引为空，例如"func(int a[][])"是不允许的
+                    if (!firstParam) {
+                        platform.programFail(`declaration of '${paramName}' as multidimensional array must have bounds for all dimensions except the first`);
+                    }
+                    astParam.arrayIndexes.push(null);
+                } else {
+                    let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
+                    astParam.arrayIndexes.push(astIndex);
+                    this.getToken();
+                }
+                firstParam = false;
             }
 
             // 添加到参数AST列表
