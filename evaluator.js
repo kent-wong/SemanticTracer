@@ -1406,6 +1406,14 @@ class Evaluator {
         let memberName;
         for (let varMember of astStructDef.members) {
             memberName = prefixName + '.' + varMember.name;
+            // 对struct类型进行进一步处理
+            if (varMember.dataType.baseType === BaseType.TypeStruct) {
+                if (varMember.dataType.numPtrs === 0) {
+                    this.evalStructDecl(varMember.dataType.customType, memberName, varMember.dataType.arrayIndexes);
+                    continue;
+                }
+            }
+
             variable = varMember.createClone(memberName);
             // 将成员加入到当前scopes
             this.scopes.addIdent(memberName, variable);
