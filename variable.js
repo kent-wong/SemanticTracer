@@ -14,6 +14,18 @@ class Variable {
         this.values = values;
     }
 
+    static createDataType(baseType, numPtrs, customType) {
+        numPtrs = (numPtrs === undefined ? 0 : numPtrs);
+        customType = (customType === undefined ? null : customType);
+
+        return {
+            baseType: baseType,
+            numPtrs: numPtrs,
+            arrayIndexes: [],
+            customType: customType
+        };
+    }
+
     checkAccessIndexes(indexes) {
         if (indexes === undefined) {
             indexes = [];
@@ -192,18 +204,6 @@ class Variable {
 
     setValueExor(indexes, value) {
         this.setValue(indexes, value, Token.TokenUnaryExor);
-    }
-
-    static createDataType(baseType, numPtrs, customType) {
-        numPtrs = (numPtrs === undefined ? 0 : numPtrs);
-        customType = (customType === undefined ? null : customType);
-
-        return {
-            baseType: baseType,
-            numPtrs: numPtrs,
-            arrayIndexes: [],
-            customType: customType
-        };
     }
 
 	createVariableRef(indexes) {

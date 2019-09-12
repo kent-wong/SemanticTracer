@@ -81,9 +81,9 @@ class Evaluator {
             platform.programFail(`redeclaration of ${astDecl.ident}`);
         }
 
-        const dataType = Variable.createDataType(astDecl.dataType.astBaseType,
+        const dataType = Variable.createDataType(astDecl.dataType.baseType,
                                                    astDecl.dataType.numPtrs,
-                                                   astDecl.dataType.ident);
+                                                   astDecl.dataType.customType);
         dataType.arrayIndexes = astDecl.arrayIndexes.map(this.evalExpressionInt, this);
 
         // 创建变量
@@ -1177,9 +1177,9 @@ class Evaluator {
         }
 
         // 评估返回类型
-        const returnType = Variable.createDataType(astFuncDef.returnType.astBaseType,
+        const returnType = Variable.createDataType(astFuncDef.returnType.baseType,
                                                    astFuncDef.returnType.numPtrs,
-                                                   astFuncDef.returnType.ident);
+                                                   astFuncDef.returnType.customType);
         astFuncDef.returnType = returnType;
 
         // evaluate parameters
@@ -1188,9 +1188,9 @@ class Evaluator {
         let paramIndexes;
         let paramVariable;
         for (let param of astFuncDef.params) {
-            paramType = Variable.createDataType(param.paramType.astBaseType,
+            paramType = Variable.createDataType(param.paramType.baseType,
                                                 param.paramType.numPtrs,
-                                                param.paramType.ident);
+                                                param.paramType.customType);
             paramIndexes = [];
             for (let idxExpression of param.arrayIndexes) {
                 if (idxExpression === null) {
