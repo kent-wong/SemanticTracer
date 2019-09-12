@@ -38,8 +38,22 @@ function expansionPoints(indexes) {
     return expansion;
 }
 
+function accessIndexesFromPosition(pos, arrayIndexes) {
+    const indexes = [];
+    const expansion= expansionPoints(arrayIndexes); 
+
+    for (let e of expansion) {
+        indexes.push(Math.floor(pos/e));
+        pos = pos % e;
+    }
+    indexes.push(pos);
+
+    return indexes;
+}
+
 module.exports = {
     isEqualArray,
     factorial,
-    expansionPoints
+    expansionPoints,
+    accessIndexesFromPosition
 };

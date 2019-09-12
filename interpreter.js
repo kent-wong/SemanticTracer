@@ -215,7 +215,3 @@ const TokenEnum = {
 };
 
 module.exports = TokenEnum;
-
-console.log('at the end of interpreter.js');
-console.log(TokenEnum.TokenIntType);
-

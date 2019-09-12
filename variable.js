@@ -418,7 +418,28 @@ class Variable {
         const theVariable = new Variable(theType, aliasName, this.values);
 
         return theVariable;
-    } // end of createArrayPtrVariable()
+    }
+
+    createClone(newName) {
+        let newValues;
+        newName = (newName === undefined ? null : newName);
+
+        const theType = {
+            baseType: this.dataType.baseType,
+            numPtrs: this.dataType.numPtrs,
+            arrayIndexes: this.dataType.arrayIndexes,
+            customType: this.dataType.customType
+        };
+
+        if (Array.isArray(this.values)) {
+            newValues = this.values.slice();
+        } else {
+            newValues = this.values;
+        }
+
+        const variable = new Variable(theType, newName, newValues);
+        return variable;
+    }
 
     isArrayType() {
         return this.dataType.arrayIndexes.length !== 0;

@@ -171,6 +171,7 @@ class Parser {
             members: []
         };
 
+        // 暂时不允许嵌套定义struct
         let astCompositeOrDecl;
         do {
             astCompositeOrDecl = this.parseDeclaration();

@@ -141,12 +141,4 @@ class Scopes {
     }
 }
 
-const sc = new Scopes();
-console.log(sc.current === sc.global);
-sc.pushScope(new Scope('func1'));
-sc.addIdent('abc', 'int');
-console.log(sc.current);
-console.log(sc.findIdent('abc'));
-console.log('-------------------------------');
-
 module.exports = Scopes;

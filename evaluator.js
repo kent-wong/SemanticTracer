@@ -7,6 +7,7 @@ const Ast = require('./ast');
 const Variable = require('./variable');
 const ArrayInit = require('./arrayInit');
 const Parser = require('./parser');
+const utils = require('./utils');
 const debug = require('./debug');
 
 let __controlStatus = null;
@@ -76,6 +77,13 @@ class Evaluator {
         assert(astDecl.ident !== null,
                     `internal error: evalDeclaration(): param has null ident`);
 
+        // 检查struct类型是否已定义
+        if (astDecl.dataType.baseType === BaseType.TypeStruct) {
+            if (this.scopes.findGlobalType(astDecl.dataType.customType) === null) {
+                platform.programFail(`struct type ${astDecl.dataType.customType} undefined`);
+            }
+        }
+
         // 检查是否有重名的变量存在
         if (this.scopes.findIdent(astDecl.ident) !== null) {
             platform.programFail(`redeclaration of ${astDecl.ident}`);
@@ -116,6 +124,13 @@ class Evaluator {
 
         // 将变量加入到当前scopes
         this.scopes.addIdent(astDecl.ident, variable);
+
+        // 对struct类型进行进一步处理
+        if (astDecl.dataType.baseType === BaseType.TypeStruct) {
+            if (astDecl.dataType.numPtrs === 0) {
+                this.evalStructDecl(astDecl.dataType.customType, astDecl.ident, dataType.arrayIndexes);
+            }
+        }
     } // end of evalDeclaration
 
     // 处理自增/自减运算，指针类型和数值类型分别处理
@@ -1329,6 +1344,74 @@ class Evaluator {
         }
     }
 
+    evalStructDef(astStructDef) {
+        const varMembers = [];
+        let dataType;
+        let variable;
+
+        // struct定义只允许出现在全局命名空间
+        if (!this.scopes.isInGlobalScope()) {
+            platform.programFail(`struct definition is only allowed in global scope`);
+        }
+
+        // 检查是否有重名的函数/变量存在
+        if (this.scopes.findGlobalIdent(astStructDef.name) !== null) {
+            platform.programFail(`name '${astStructDef.name}' has been declared for variable`);
+        }
+        if (this.scopes.findGlobalType(astStructDef.name) !== null) {
+            platform.programFail(`name '${astStructDef.name}' has been declared`);
+        }
+
+        for (let astDecl of astStructDef.members) {
+            dataType = Variable.createDataType(astDecl.dataType.baseType,
+                                                       astDecl.dataType.numPtrs,
+                                                       astDecl.dataType.customType);
+            dataType.arrayIndexes = astDecl.arrayIndexes.map(this.evalExpressionInt, this);
+
+            // 创建变量
+            variable = new Variable(dataType, astDecl.ident, null);
+            variable.initDefaultValue();
+
+            varMembers.push(variable);
+        }
+
+        astStructDef.members = varMembers;
+        this.scopes.addType(astStructDef.name, astStructDef);
+    } // end of evalStructDef()
+
+    evalStructDecl(structName, prefixName, arrayIndexes) {
+        const astStructDef = this.scopes.findGlobalType(structName);
+        assert(astStructDef !== null, `internal: evalStructDecl(): struct type ${structName} undefined`);
+
+        if (arrayIndexes.length === 0) {
+            return this.processStructDecl(astStructDef, prefixName);
+        }
+
+        let accessIndexes;
+        let prefix;
+        const total = utils.factorial(...arrayIndexes);
+        for (let i = 0; i < total; i ++) {
+            accessIndexes = utils.accessIndexesFromPosition(i, arrayIndexes);
+            prefix = prefixName;
+            for (let idx of accessIndexes) {
+                prefix += '[' + idx + ']';
+            }
+            this.processStructDecl(astStructDef, prefix);
+        }
+
+    }
+
+    processStructDecl(astStructDef, prefixName) {
+        let variable;
+        let memberName;
+        for (let varMember of astStructDef.members) {
+            memberName = prefixName + '.' + varMember.name;
+            variable = varMember.createClone(memberName);
+            // 将成员加入到当前scopes
+            this.scopes.addIdent(memberName, variable);
+        }
+    }
+
     // 根据AST类型进行分发处理
     evalDispatch(astNode) {
         switch (astNode.astType) {
@@ -1361,6 +1444,7 @@ class Evaluator {
                 break;
 
             case Ast.AstStruct:
+                this.evalStructDef(astNode);
                 break;
             case Ast.AstUnion:
                 break;
