@@ -918,7 +918,7 @@ class Lexer {
     // 当前位置插入多个token
     insertTokens(...tokens) {
         assert(tokens.length !== 0, `in function insertTokens(): argument tokens is an empty array`);
-        assert(index < this.tokenInfo.length, `in function insertTokens(): argument index overflowed`);
+        assert(this.tokenIndex < this.tokenInfo.length, `in function insertTokens(): argument index overflowed`);
 
         this.tokenInfo.splice(this.tokenIndex, 0, ...tokens);
     }

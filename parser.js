@@ -171,15 +171,17 @@ class Parser {
             members: []
         };
 
-        let astComposite;
+        let astCompositeOrDecl;
         do {
-            astComposite = this.parseDeclaration();
-            assert(astComposite.astType === Ast.AstComposite,
-                     `internal: parseStruct(): parseDeclaration() returned astType '${astComposite.astType}'`);
+            astCompositeOrDecl = this.parseDeclaration();
 
-            for (let astDecl of astComposite.astList) {
-                // 生成struct的member
-                astStructDef.members.push(astDecl);
+            // 生成struct的member
+            if (astCompositeOrDecl.astType === Ast.AstComposite) {
+                for (let astDecl of astComposite.astList) {
+                    astStructDef.members.push(astDecl);
+                }
+            } else {
+                astStructDef.members.push(astCompositeOrDecl);
             }
         } while (this.peekToken() !== Token.TokenRightBrace);
         this.getToken();
@@ -187,13 +189,9 @@ class Parser {
         return astStructDef;
     } // end of parseStruct()
 
-    _processStructDef(isTypedef) {
+    processStructDef(isTypedef) {
         let makeupName = false;
         let structName = null;
-
-        if (!this.lexer.peekIfMatch([Token.TokenStructType, Token.TokenUnionType])) {
-            return null;
-        }
 
         const oldState = this.stateSave();
         const structTokenInfo = this.getTokenInfo();
@@ -322,6 +320,7 @@ class Parser {
             return this.parseFuncDef(returnType);
         }
 
+        let astDecl;
         do {
             // 解析指针
             while (this.lexer.forwardIfMatch(Token.TokenAsterisk)) {
@@ -329,7 +328,7 @@ class Parser {
             }
 
             // 由声明语句生成的AST
-            const astDecl = {
+            astDecl = {
                 astType: Ast.AstDeclaration,
                 dataType: {
                     baseType: astModelType.baseType,
@@ -393,7 +392,11 @@ class Parser {
             platform.programFail(`missing ';' after declaration`);
         }
 
-        return Ast.createComposite(...astList);
+        if (astList.length === 1) {
+            return astDecl;
+        } else {
+            return Ast.createComposite(...astList);
+        }
     } // end of parseDeclaration(...stopAt)
 
     // 解析数组初始化列表
@@ -1231,7 +1234,7 @@ class Parser {
 
             case Token.TokenUnionType:
             case Token.TokenStructType:
-                astResult = this._processStructDef(false);
+                astResult = this.processStructDef(false);
                 if (astResult !== null) {
                     return astResult;
                 }
@@ -1257,7 +1260,7 @@ class Parser {
                 break;
                
             case Token.TokenTypedef:
-                astResult = this._processStructDef(true);
+                astResult = this.processStructDef(true);
                 if (astResult !== null) {
                     return astResult;
                 }
