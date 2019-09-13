@@ -260,28 +260,36 @@ class Evaluator {
         };
     }
 
-    processFields(varRef, prefix, fields) {
-        if (fields.length === 0) {
+    processFields(varRef, prefix, fieldsChain) {
+        if (fieldsChain.length === 0) {
             return varRef;
         }
 
-        const astField = fields.pop();
+        // 对于使用"->"访问的成员，找到其左边指针指向的struct，
+        // 转换为使用"."访问
+        // 这同时也会打断成员链，重新进行struct成员访问
+        if (fieldsChain[0].astType === Ast.AstRefByPtr) {
+            if (!varRef.variable.isPtrType()) {
+                platform.programFail(`expect a pointer before field ${fieldsChain[0].ident}`);
+            }
+
+            const ptr = varRef.variable.getValue(varRef.accessIndexes);
+            if (ptr === null) {
+                platform.programFail(`null pointer before field ${fieldsChain[0].ident}`);
+            }
+
+            varRef.variable = ptr.refTo;
+            varRef.accessIndexes = ptr.indexes;
+
+            fieldsChain[0].astType = Ast.AstRefByDot;
+            return this.processStructAccess(varRef, fieldsChain);
+        }
+
+        const astField = fieldsChain.shift();
         let fieldIndexes = astField.accessIndexes.map(this.evalExpressionInt, this);
         let fieldName = astField.ident;
         let varStructDecl;
         let structIndexes = [];
-        if (astField.astType === Ast.AstRefByPtr) {
-            if (!varRef.variable.isPtrType()) {
-                platform.programFail(`expect a pointer before field {fieldName}`);
-            }
-
-            const refTo = varRef.variable.getValue(varRef.accessIndexes);
-            if (refTo === null) {
-                platform.programFail(`null pointer before field {fieldName}`);
-            }
-            varRef.variable = refTo.variable;
-            varRef.accessIndexes = refTo.indexes;
-        }
 
         // struct类型的变量values中存放的是相应的struct定义
         // 注意：这里不能使用getValue()
@@ -313,40 +321,15 @@ class Evaluator {
         }
         const nextAccessIndexes = astField.accessIndexes.map(this.evalExpressionInt, this);
         let nextVarRef = nextVariable.createVariableRef(nextAccessIndexes);
-        if (fields.length !== 0) {
-            nextVarRef = this.processFields(nextVarRef, prefix, fields);
+        if (fieldsChain.length !== 0) {
+            nextVarRef = this.processFields(nextVarRef, prefix, fieldsChain);
         }
 
         return nextVarRef;
+    }
 
-        /*
-        if (fields.length !== 0 && fields[0].astType === Ast.AstRefByDot) {
-            let astField = fields.pop();
-            let fieldIndexes = astField.accessIndexes.map(this.evalExpressionInt, this);
-            let fieldName = astField.ident;
-            let varStructDecl = this.getVariable(prefix);
-            if (varStructDecl === null) {
-                platform.programFail(`invalid field expression ${prefix}`);
-            }
-            let structIndexes = [];
-
-            for (let idx of fieldIndexes) {
-                prefix += '[' + idx + ']';
-            }
-        } else {
-            const varResult = this.getVariable(prefix);
-            if (varResult === null) {
-                platform.programFail(`invalid field expression ${prefix}`);
-            }
-
-            let varResultRef = varResult.createVariableRef(fieldIndexes);
-            // 如果对下一个field的访问使用了"->"，则说明本field是指向struct的指针
-            if (fields.length !== 0) {
-                varResultRef = this.processFields(varResultRef, fields);
-            }
-            return varResultRef;
-        }
-        */
+    processStructAccess(varStructRef, fieldsChain) {
+        return this.processFields(varStructRef, varStructRef.variable.name, fieldsChain);
     }
 
     variableRefFromAstIdent(astIdent) {
@@ -357,8 +340,8 @@ class Evaluator {
         let accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
 
 		let varRef = variable.createVariableRef(accessIndexes);
-        if (astIdent.fields.length !== 0) {
-            varRef = this.processFields(varRef, varRef.variable.name, astIdent.fields);
+        if (astIdent.fieldsChain.length !== 0) {
+            varRef = this.processStructAccess(varRef, astIdent.fieldsChain);
         }
 
 		return {

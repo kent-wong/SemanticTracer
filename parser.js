@@ -443,7 +443,7 @@ class Parser {
             astType: Ast.AstIdentifier,
             ident: null,
             accessIndexes: [],
-            fields: []
+            fieldsChain: []
         };
 
         do {
@@ -470,7 +470,7 @@ class Parser {
                 } else {
                     astField.astType = Ast.AstRefByDot;
                 }
-                astIdent.fields.push(astField);
+                astIdent.fieldsChain.push(astField);
             } else {
                 astIdent.ident = ident;
                 astIdent.accessIndexes = accessIndexes;

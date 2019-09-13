@@ -206,6 +206,7 @@ class Variable {
         this.setValue(indexes, value, Token.TokenUnaryExor);
     }
 
+    // todo: 检查索引越界
 	createVariableRef(indexes) {
         indexes = (indexes === undefined ? [] : indexes);
 
@@ -270,59 +271,6 @@ class Variable {
         };
 
 	}
-
-    /*
-    getReferrence(indexes, autoFillIndexes, noFillMsg) {
-        indexes = (indexes === undefined ? [] : indexes);
-        autoFillIndexes = (autoFillIndexes === undefined ? false : autoFillIndexes);
-
-        let variable = this;
-        let newIndexes = indexes;
-		let filled = false;
-
-        if (indexes.length < this.dataType.arrayIndexes.length && !autoFillIndexes) {
-            if (noFillMsg) {
-                platform.programFail(noFillMsg);
-            } else {
-                platform.programFail(`insufficient indexes`);
-            }
-        }
-
-        if (indexes.length === this.dataType.arrayIndexes.length) {
-        } else if (indexes.length < this.dataType.arrayIndexes.length) {
-            newIndexes = indexes.slice();
-            newIndexes.length = this.dataType.arrayIndexes.length;
-            newIndexes.fill(0, indexes.length);
-			filled = true;
-        } else {
-            // 指定的索引维度大于本变量的数组维度
-            // 本变量(的元素)必须是指针，并且以指针为基础的索引必须是一维的
-            let delta = indexes.length - this.dataType.arrayIndexes.length;
-            if (!this.isPtrType() || delta !== 1) {
-                platform.programFail(`subscripted value is neither array nor pointer`);
-            }
-
-            const truncatedIndexes = indexes.slice(0, this.dataType.arrayIndexes.length);
-            const refValue = this.getValue(truncatedIndexes);
-            if (refValue === 0) {
-                platform.programFail(`dereferrence to null pointer`);
-            }
-
-            variable = refValue.refTo;
-            if (variable.dataType.arrayIndexes.length === 0) {
-                platform.programFail(`semantic error: attempts redirecting pointer to point to unknown place`);
-            }
-
-            newIndexes = this.indexesFromPointerOffset(refValue, indexes.pop());
-        }
-
-        return {
-            variable: variable,
-            accessIndexes: newIndexes,
-			filled: filled
-        };
-    }
-    */
 
     // 创建一个variable，以指定的元素为其内容
     createElementVariable(indexes) {
