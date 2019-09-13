@@ -38,6 +38,8 @@ const AstEnum = {
     AstTernary: 34,
     AstVariable: 35,
     AstArrayInitializer: 36,
+    AstRefByPtr: 37,
+    AstRefByDot: 38,
 
     createComposite: function(...astList) {
         return {
@@ -88,7 +90,9 @@ const AstNames = [
     "AstContinue",
     "AstTernary",
     "AstVariable",
-    "AstArrayInitializer"
+    "AstArrayInitializer",
+    "AstRefByPtr",
+    "AstRefByDot"
 ];
 
 module.exports = AstEnum;

@@ -434,45 +434,60 @@ class Parser {
 
     retrieveIdentAst() {
         let token = Token.TokenNone;
-        let value = null;
+        let ident = null;
         let done = false;
+        let isField = false;
         let refByPtr = false;
-        let astResult = null;
+
+        const astIdent = {
+            astType: Ast.AstIdentifier,
+            ident: null,
+            accessIndexes: [],
+            fields: []
+        };
 
         do {
-            ({token, value} = this.getTokenInfo());
-            if (token !== Token.TokenIdentifier) {
-                return null;
-            }
+            let accessIndexes = [];
 
-            const astIdent = {
-                astType: Ast.AstIdentifier,
-                ident: value,
-                accessIndexes: [],
-                astParent: astResult,
-                refByPtr: refByPtr
-            }
+            ({token, value: ident} = this.getTokenInfo());
+            assert(token === Token.TokenIdentifier, `internal: retrieveIdentAst(): wrong token type ${Token.getTokenName(token)}`);
 
             // 处理数组下标
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
-                astIdent.accessIndexes.push(astIndex);
+                accessIndexes.push(astIndex);
                 this.getToken();
             }
 
-            astResult = astIdent; // 把自己设置为parent
+            if (isField) {
+                const astField = {
+                    astType: null,
+                    ident: ident,
+                    accessIndexes: accessIndexes
+                };
+                if (refByPtr) {
+                    astField.astType = Ast.AstRefByPtr;
+                } else {
+                    astField.astType = Ast.AstRefByDot;
+                }
+                astIdent.fields.push(astField);
+            } else {
+                astIdent.ident = ident;
+                astIdent.accessIndexes = accessIndexes;
+            }
 
             // 处理struct/union成员
             token = this.peekToken();
             if (token === Token.TokenDot || token === Token.TokenArrow) {
+                isField = true;
                 refByPtr = token === Token.TokenDot ? false : true;
                 this.getToken();
             } else {
-                done = true;
+                break;
             }
-        } while (!done);
+        } while (true);
 
-        return astResult;
+        return astIdent;
     } // end of retrieveIdentAst()
 
     // 解析赋值语句，包括=, +=, -=, <<=一类的赋值语句

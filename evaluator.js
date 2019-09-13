@@ -128,6 +128,10 @@ class Evaluator {
         // 对struct类型进行进一步处理
         if (astDecl.dataType.baseType === BaseType.TypeStruct) {
             if (astDecl.dataType.numPtrs === 0) {
+                // 将结构定义赋值给变量，便于后续处理
+                const astStructDef = this.scopes.findGlobalType(astDecl.dataType.customType);
+                variable.values = astStructDef;
+
                 this.evalStructDecl(astDecl.dataType.customType, astDecl.ident, dataType.arrayIndexes);
             }
         }
@@ -167,42 +171,6 @@ class Evaluator {
             variable: varResult,
             accessIndexes: []
         };
-
-
-        /*
-        let variable;
-        let varResult;
-		let accessIndexes;
-        const n = (isIncr ? 1 : -1);
-
-        variable = this.getVariable(astIdent.ident);
-        if (variable === null) {
-            platform.programFail(`${astIdent.ident} undeclared`);
-        }
-
-        accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-        ({variable, accessIndexes} = variable.getReferrence(accessIndexes));
-        if (variable.isPtrType()) {
-            variable.handlePtrChange(accessIndexes, n, Token.TokenIncrement);
-            varResult = variable.createElementVariable(accessIndexes);
-        } else if (variable.isNumericType()) {
-            if (isPostfix) {
-                varResult = variable.createElementVariable(accessIndexes);
-                variable.setValueIncr(accessIndexes, n);
-            } else {
-                variable.setValueIncr(accessIndexes, n);
-                varResult = variable.createElementVariable(accessIndexes);
-            }
-        } else {
-            if (isIncr) {
-                platform.programFail(`wrong type argument to increment operand`);
-            } else {
-                platform.programFail(`wrong type argument to decrement operand`);
-            }
-        }
-
-        return varResult;
-        */
     }
 
     evalPostfixIncr(astOperand) {
@@ -231,23 +199,6 @@ class Evaluator {
 
     // 取地址运算符
     evalTakeAddress(astOperand) {
-        /*
-        const astIdent = astTakeAddress.astIdent;
-
-        // 通过AST获取变量，此变量必须存在于当前有效的scopes中
-        const variable = this.getVariable(astIdent.ident);
-        if (variable === null) {
-            platform.programFail(`${astIdent.ident} undeclared`);
-        }
-        // 变量必须是左值
-        if (variable.name === null) {
-            platform.programFail(`lvalue required`);
-        }
-
-        const accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-        //console.log('accessIndexes:', accessIndexes);
-        return variable.createElementAddressVariable(accessIndexes);
-        */
         const varAddress = astOperand.variable.createElementAddressVariable(astOperand.accessIndexes);
         return {
             astType: Ast.AstVariable,
@@ -257,30 +208,6 @@ class Evaluator {
     }
 
     evalTakeValue(astOperand) {
-        /*
-        const astIdent = astTakeValue.astIdent;
-        let variable = this.getVariable(astIdent.ident);
-        if (variable === null) {
-            platform.programFail(`${astIdent.ident} undeclared`);
-        }
-
-		const msg = `ambiguity: please specify complete indexes`;
-        let accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-		({variable, accessIndexes} = variable.getReferrence(accessIndexes, false, msg));
-
-        // 变量或变量元素的类型必须是指针
-        if (!variable.isPtrType()) {
-            platform.programFail(`lvalue is NOT a pointer`);
-        }
-
-        const ptr = variable.getValue(accessIndexes);
-        if (ptr === 0) {
-            platform.programFail(`dereferrence to a NULL pointer`);
-        }
-
-        return ptr.refTo.createElementVariable(ptr.indexes);
-        */
-
         const ptr = astOperand.variable.getValue(astOperand.accessIndexes);
         if (ptr === 0) {
             platform.programFail(`dereferrence to a NULL pointer`);
@@ -333,14 +260,107 @@ class Evaluator {
         };
     }
 
+    processFields(varRef, prefix, fields) {
+        if (fields.length === 0) {
+            return varRef;
+        }
+
+        const astField = fields.pop();
+        let fieldIndexes = astField.accessIndexes.map(this.evalExpressionInt, this);
+        let fieldName = astField.ident;
+        let varStructDecl;
+        let structIndexes = [];
+        if (astField.astType === Ast.AstRefByPtr) {
+            if (!varRef.variable.isPtrType()) {
+                platform.programFail(`expect a pointer before field {fieldName}`);
+            }
+
+            const refTo = varRef.variable.getValue(varRef.accessIndexes);
+            if (refTo === null) {
+                platform.programFail(`null pointer before field {fieldName}`);
+            }
+            varRef.variable = refTo.variable;
+            varRef.accessIndexes = refTo.indexes;
+        }
+
+        // struct类型的变量values中存放的是相应的struct定义
+        // 注意：这里不能使用getValue()
+        const astStructDef = varRef.variable.values;
+        assert(astStructDef !== null, `internal: processFields(): astStructDef is null`);
+
+        // 检查field name是否符合struct定义
+        let found = false;
+        for (let varMember of astStructDef.members) {
+            if (varMember.name === fieldName) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            platform.programFail(`struct ${astStructDef.name} has no field named ${fieldName}`);
+        }
+
+        // 将数组索引加入prefix
+        for (let idx of varRef.accessIndexes) {
+            prefix += '[' + idx + ']';
+        }
+        // 将当前field name加入prefix
+        prefix += '.' + fieldName;
+
+        const nextVariable = this.getVariable(prefix);
+        if (nextVariable === null) {
+            platform.programFail(`invalid field expression ${prefix}`);
+        }
+        const nextAccessIndexes = astField.accessIndexes.map(this.evalExpressionInt, this);
+        let nextVarRef = nextVariable.createVariableRef(nextAccessIndexes);
+        if (fields.length !== 0) {
+            nextVarRef = this.processFields(nextVarRef, prefix, fields);
+        }
+
+        return nextVarRef;
+
+        /*
+        if (fields.length !== 0 && fields[0].astType === Ast.AstRefByDot) {
+            let astField = fields.pop();
+            let fieldIndexes = astField.accessIndexes.map(this.evalExpressionInt, this);
+            let fieldName = astField.ident;
+            let varStructDecl = this.getVariable(prefix);
+            if (varStructDecl === null) {
+                platform.programFail(`invalid field expression ${prefix}`);
+            }
+            let structIndexes = [];
+
+            for (let idx of fieldIndexes) {
+                prefix += '[' + idx + ']';
+            }
+        } else {
+            const varResult = this.getVariable(prefix);
+            if (varResult === null) {
+                platform.programFail(`invalid field expression ${prefix}`);
+            }
+
+            let varResultRef = varResult.createVariableRef(fieldIndexes);
+            // 如果对下一个field的访问使用了"->"，则说明本field是指向struct的指针
+            if (fields.length !== 0) {
+                varResultRef = this.processFields(varResultRef, fields);
+            }
+            return varResultRef;
+        }
+        */
+    }
+
     variableRefFromAstIdent(astIdent) {
         let variable = this.getVariable(astIdent.ident);
         if (variable === null) {
             platform.programFail(`${astIdent.ident} undeclared`);
         }
-
         let accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
-		const varRef = variable.createVariableRef(accessIndexes);
+
+		let varRef = variable.createVariableRef(accessIndexes);
+        if (astIdent.fields.length !== 0) {
+            varRef = this.processFields(varRef, varRef.variable.name, astIdent.fields);
+        }
+
 		return {
 			astType: Ast.AstVariable,
 			variable: varRef.variable,
@@ -1363,6 +1383,12 @@ class Evaluator {
         }
 
         for (let astDecl of astStructDef.members) {
+            if (astDecl.dataType.baseType === BaseType.TypeStruct) {
+                if (this.scopes.findGlobalType(astDecl.dataType.customType) === null) {
+                    platform.programFail(`struct ${astDecl.dataType.customType} undefined`);
+                }
+            }
+
             dataType = Variable.createDataType(astDecl.dataType.baseType,
                                                        astDecl.dataType.numPtrs,
                                                        astDecl.dataType.customType);
@@ -1406,17 +1432,25 @@ class Evaluator {
         let memberName;
         for (let varMember of astStructDef.members) {
             memberName = prefixName + '.' + varMember.name;
-            // 对struct类型进行进一步处理
+
+            // 创建成员并加入到当前scopes
+            variable = varMember.createClone(memberName);
+            this.scopes.addIdent(memberName, variable);
+
+            // 对struct类型进行处理
             if (varMember.dataType.baseType === BaseType.TypeStruct) {
                 if (varMember.dataType.numPtrs === 0) {
+                    // struct类型的变量，values中存放的是相应的struct定义
+                    const astStructDef = this.scopes.findGlobalType(varMember.dataType.customType);
+                    if (astStructDef === null) {
+                        platform.programFail(`struct ${varMember.dataType.customType} undefined`);
+                    }
+                    variable.values = astStructDef;
+
                     this.evalStructDecl(varMember.dataType.customType, memberName, varMember.dataType.arrayIndexes);
-                    continue;
                 }
             }
 
-            variable = varMember.createClone(memberName);
-            // 将成员加入到当前scopes
-            this.scopes.addIdent(memberName, variable);
         }
     }
 
