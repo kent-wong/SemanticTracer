@@ -164,6 +164,45 @@ class Parser {
         return resultType;
     } // end of parseType()
 
+    parseEnum(enumName) {
+        let counter = 0;
+        const astEnumDef = {
+            astType: Ast.AstEnum,
+            name: enumName,
+            members: []
+        };
+        const member = {
+            id: null,
+            value: null
+        };
+
+        let tokenInfo = this.lexer.peekTokenInfo();
+        if (tokenInfo.token === Token.TokenRightBrace) {
+            platform.programFail('empty enum is invalid');
+        }
+
+        do {
+            tokenInfo = this.lexer.getTokenInfo();
+            if (tokenInfo.token !== Token.TokenIdentifier) {
+                platform.programFail('expected identifier');
+            }
+            member.id = tokenInfo.value;
+
+            tokenInfo = this.lexer.getTokenInfo();
+            if (tokenInfo.token === Token.TokenComma) {
+                member.value = counter ++;
+            } else if (tokenInfo.token === Token.TokenAssign) {
+            } else {
+                platform.programFail(`expected '=' or ',' after ${member.id}`);
+            }
+
+
+        } while (this.peekToken() !== Token.TokenRightBrace);
+        this.getToken();
+
+        return astEnumDef;
+    }
+
     parseStruct(structName) {
         const astStructDef = {
             astType: Ast.AstStruct,
@@ -189,6 +228,51 @@ class Parser {
 
         return astStructDef;
     } // end of parseStruct()
+
+    processEnumDef() {
+        let makeupName = false;
+        const enumTokenInfo = this.getTokenInfo();
+
+        if (this.lexer.peekIfMatch(Token.TokenLeftBrace)) {
+            // makeup a name
+            const enumName = this.makeEnumName();
+            makeupName = true;
+            const nameTokenInfo = this.lexer.makeTokenInfo(
+                                                Token.TokenIdentifier,
+                                                enumName, 0, 0);
+            this.lexer.insertTokens(nameTokenInfo);
+        }
+
+        if (this.lexer.peekIfMatch(Token.TokenIdentifier, Token.TokenLeftBrace)) {
+            const identTokenInfo = this.getTokenInfo();
+            this.getToken();
+
+            const astEnumDef = this.parseEnum(identTokenInfo.value);
+            if (this.lexer.forwardIfMatch(Token.TokenSemicolon)) {
+                if (makeupName) {
+                    platform.programFail(`expected type name before '{'`);
+                }
+            } else {
+                // 在完整的enum定义之后如果没有立即出现';'
+                // 说明此enum可能被马上用来声明变量，例如：
+                //  enum {
+                //      Sunday,
+                //      Monday,
+                //      ...
+                //  } WeekDay;
+                // 
+                // 这种情况下一条语句会产生两个AST
+                // 为了解决这个问题，在enum完整定义后立即插入两个token：
+                // <TokenEnumType, TokenIdentifier>并返回
+                // 这样将一条语句分成了两条语句，下次再解析的时候会进行声明语句的处理
+                this.lexer.insertTokens(enumTokenInfo, identTokenInfo);
+            }
+            
+            return astEnumDef;
+        }
+
+        return null;
+    }
 
     processStructDef(isTypedef) {
         let makeupName = false;
@@ -696,6 +780,54 @@ class Parser {
         elementList = elementList.reverse().filter(v => {return v !== undefined});
         return elementList;
     } // end of parseUnaryOperator
+
+    checkIntegerExpression(memberNameHint, ...stopAt) {
+        // 表达式默认以分号结尾
+        if (stopAt.length === 0) {
+            stopAt.push(Token.TokenSemicolon);
+        }
+
+        const tokenFirst = this.peekToken();
+        if (tokenFirst !== Token.TokenIntegerConstant && tokenFirst === Token.TokenPlus && tokenFirst === Token.TokenMinus){
+            platform.programFail(`'${tokenFirst}' is NOT allowed as first token of integer expression`);
+        }
+
+        let expectNumber = true;
+        let token;
+        let tokenInfo;
+        do {
+            tokenInfo = this.lexer.getTokenInfo();
+            switch (tokenInfo.token) {
+                case Token.TokenIntegerConstant: // 整数常量
+                case Token.TokenAsterisk:   // 乘法
+                case Token.TokenSlash:      // 除法
+                case Token.TokenModulus:    // 取模
+                case Token.TokenPlus:       // 加法
+                case Token.TokenMinus:      // 减法
+                case Token.TokenShiftLeft:  // 左移
+                case Token.TokenShiftRight: // 右移
+                case Token.TokenLessThan:   // 小于
+                case Token.TokenLessEqual:  // 小于等于
+                case Token.TokenGreaterThan:// 大于
+                case Token.TokenGreaterEqual:   // 大于等于
+                case Token.TokenEqual:          // 等于
+                case Token.TokenNotEqual:       // 不等于
+                case Token.TokenAmpersand:      // 按位与
+                case Token.TokenArithmeticOr:   // 按位或
+                case Token.TokenArithmeticExor: // 按位异或
+                case Token.TokenLogicalAnd:     // 逻辑与
+                case Token.TokenLogicalOr:      // 逻辑或
+                case Token.TokenQuestionMark:
+                case Token.TokenColon:
+                    break;
+                default:
+                    platform.programFail(`enumerator value for '${memberNameHint}' is not an integer constant`);
+                    break;
+            }
+
+            token = this.peekToken();
+        } while (!stopAt.includes(token));
+    }
 
     parseExpression(...stopAt) {
         if (stopAt.length === 0) {
@@ -1247,6 +1379,10 @@ class Parser {
                 this.getToken();
                 astResult = this.parseSwitch();
                 break; 
+
+            case Token.TokenEnumType:
+                astResult = this.processEnumDef();
+                break;
 
             case Token.TokenUnionType:
             case Token.TokenStructType:
