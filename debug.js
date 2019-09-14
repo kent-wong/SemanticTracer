@@ -62,6 +62,11 @@ function debugShow(target) {
 }
 
 function dumpScope(scope) {
+    scope.types.forEach((value, key) => {
+        console.log('*** types: ' + key + ' ***');
+        debugShow(value);
+    });
+
     scope.idents.forEach((value, key) => {
         console.log('*** variable: ' + key + ' ***');
         debugShow(value);

@@ -68,9 +68,6 @@ class Evaluator {
         this.scopes = new Scopes();
     }
 
-    checkRedeclaration(ident) {
-    }
-
     evalDeclaration(astDecl) {
         assert(astDecl.astType === Ast.AstDeclaration,
                     `internal error: evalDeclaration(): param is NOT AstDeclaration`);
@@ -335,6 +332,11 @@ class Evaluator {
     variableRefFromAstIdent(astIdent) {
         let variable = this.getVariable(astIdent.ident);
         if (variable === null) {
+            const astConst = this.findEnumValue(astIdent.ident);
+            if (astConst !== null) {
+                return this.variableRefFromAstConstant(astConst);
+            }
+
             platform.programFail(`${astIdent.ident} undeclared`);
         }
         let accessIndexes = astIdent.accessIndexes.map(this.evalExpressionInt, this);
@@ -1347,6 +1349,53 @@ class Evaluator {
         }
     }
 
+    findEnumValue(id) {
+        let value = null;
+        for (let [typeName, astTypeDef] of this.scopes.global.types) {
+            if (astTypeDef.astType === Ast.AstEnum) {
+                for (let member of astTypeDef.members) {
+                    if (member.id === id) {
+                        value = member.value;
+                    }
+                }
+            }
+        }
+        return value;
+    }
+
+    evalEnumDef(astEnumDef) {
+        let counter = 0;
+
+        // enum定义只允许出现在全局命名空间
+        if (!this.scopes.isInGlobalScope()) {
+            platform.programFail(`enum definition is only allowed in global scope`);
+        }
+
+        // 检查是否有重名的函数/变量存在
+        if (this.scopes.findGlobalIdent(astEnumDef.name) !== null) {
+            platform.programFail(`name '${astEnumDef.name}' has been declared for variable`);
+        }
+        if (this.scopes.findGlobalType(astEnumDef.name) !== null) {
+            platform.programFail(`name '${astEnumDef.name}' has been declared`);
+        }
+
+        for (let member of astEnumDef.members) {
+            if (member.value === null) {
+                member.value = counter ++;
+            } else {
+                member.value = this.evalExpressionInt(member.value);
+                counter = member.value + 1;
+            }
+            member.value = {
+                astType: Ast.AstConstant,
+                token: Token.TokenIntegerConstant,
+                value: member.value
+            };
+        }
+
+        this.scopes.addType(astEnumDef.name, astEnumDef);
+    } // end of evalEnumDef()
+
     evalStructDef(astStructDef) {
         const varMembers = [];
         let dataType;
@@ -1433,7 +1482,6 @@ class Evaluator {
                     this.evalStructDecl(varMember.dataType.customType, memberName, varMember.dataType.arrayIndexes);
                 }
             }
-
         }
     }
 
@@ -1466,6 +1514,7 @@ class Evaluator {
                 this.evalFor(astNode);
                 break;
             case Ast.AstSwitch:
+                this.evalSwitch(astNode);
                 break;
 
             case Ast.AstStruct:
@@ -1474,6 +1523,9 @@ class Evaluator {
             case Ast.AstUnion:
                 break;
             case Ast.AstTypedef:
+                break;
+            case Ast.AstEnum:
+                this.evalEnumDef(astNode);
                 break;
 
             case Ast.AstContinue:
