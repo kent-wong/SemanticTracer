@@ -29,7 +29,7 @@ const ReservedWords = {
     "do": Token.TokenDo,
     "double": Token.TokenDoubleType,
     "else": Token.TokenElse,
-    "enum": Token.TokenType,
+    "enum": Token.TokenEnumType,
     "extern": Token.TokenExternType,
     "float": Token.TokenFloatType,
     "for": Token.TokenFor,

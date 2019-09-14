@@ -165,15 +165,10 @@ class Parser {
     } // end of parseType()
 
     parseEnum(enumName) {
-        let counter = 0;
         const astEnumDef = {
             astType: Ast.AstEnum,
             name: enumName,
             members: []
-        };
-        const member = {
-            id: null,
-            value: null
         };
 
         let tokenInfo = this.lexer.peekTokenInfo();
@@ -186,18 +181,24 @@ class Parser {
             if (tokenInfo.token !== Token.TokenIdentifier) {
                 platform.programFail('expected identifier');
             }
-            member.id = tokenInfo.value;
 
-            tokenInfo = this.lexer.getTokenInfo();
-            if (tokenInfo.token === Token.TokenComma) {
-                member.value = counter ++;
-            } else if (tokenInfo.token === Token.TokenAssign) {
+            const member = {
+                id: tokenInfo.value,
+                value: null
+            };
+
+            if (this.lexer.forwardIfMatch(Token.TokenAssign)) {
+                this.checkIntegerExpression(member.id, Token.TokenComma, Token.TokenRightBrace);
+                member.value = this.parseExpression(Token.TokenComma, Token.TokenRightBrace);
             } else {
-                platform.programFail(`expected '=' or ',' after ${member.id}`);
+                tokenInfo = this.lexer.peekTokenInfo();
+                if (tokenInfo.token !== Token.TokenComma && tokenInfo.token !== Token.TokenRightBrace) {
+                    platform.programFail(`expected ',' or '}' after ${member.id}`);
+                }
             }
 
-
-        } while (this.peekToken() !== Token.TokenRightBrace);
+            astEnumDef.members.push(member);
+        } while (this.lexer.forwardIfMatch(Token.TokenComma));
         this.getToken();
 
         return astEnumDef;
@@ -231,6 +232,7 @@ class Parser {
 
     processEnumDef() {
         let makeupName = false;
+        const oldState = this.stateSave();
         const enumTokenInfo = this.getTokenInfo();
 
         if (this.lexer.peekIfMatch(Token.TokenLeftBrace)) {
@@ -271,6 +273,7 @@ class Parser {
             return astEnumDef;
         }
 
+        this.stateRestore(oldState);
         return null;
     }
 
@@ -787,9 +790,14 @@ class Parser {
             stopAt.push(Token.TokenSemicolon);
         }
 
+        const oldState = this.stateSave();
+
         const tokenFirst = this.peekToken();
-        if (tokenFirst !== Token.TokenIntegerConstant && tokenFirst === Token.TokenPlus && tokenFirst === Token.TokenMinus){
-            platform.programFail(`'${tokenFirst}' is NOT allowed as first token of integer expression`);
+        if (tokenFirst === Token.TokenComma || tokenFirst === Token.TokenRightBrace) {
+            platform.programFail(`expected an integer number or expression after '='`);
+        }
+        if (tokenFirst !== Token.TokenIntegerConstant && tokenFirst !== Token.TokenPlus && tokenFirst !== Token.TokenMinus){
+            platform.programFail(`'${Token.getTokenName(tokenFirst)}' is NOT allowed as first token of integer expression`);
         }
 
         let expectNumber = true;
@@ -827,6 +835,8 @@ class Parser {
 
             token = this.peekToken();
         } while (!stopAt.includes(token));
+
+        this.stateRestore(oldState); 
     }
 
     parseExpression(...stopAt) {
@@ -1382,15 +1392,18 @@ class Parser {
 
             case Token.TokenEnumType:
                 astResult = this.processEnumDef();
+                if (astResult === null) {
+                    astResult = this.parseDeclaration();
+                }
                 break;
 
             case Token.TokenUnionType:
             case Token.TokenStructType:
                 astResult = this.processStructDef(false);
-                if (astResult !== null) {
-                    return astResult;
+                if (astResult === null) {
+                    astResult = this.parseDeclaration();
                 }
-                // fall-through
+                break;
 
             // 下列为以类型开始的语句，按照声明语句来解析(包括函数定义)
             case Token.TokenIntType:
