@@ -91,9 +91,21 @@ class Evaluator {
                                                    astDecl.dataType.customType);
         dataType.arrayIndexes = astDecl.arrayIndexes.map(this.evalExpressionInt, this);
 
-        // 创建变量
+        // 创建变量，将变量加入到当前scopes
         const variable = new Variable(dataType, astDecl.ident, null);
         variable.initDefaultValue();
+        this.scopes.addIdent(astDecl.ident, variable);
+
+        // 对struct类型进行进一步处理
+        if (dataType.baseType === BaseType.TypeStruct) {
+            if (dataType.numPtrs === 0) {
+                // 将结构定义赋值给变量，便于后续处理
+                const astStructDef = this.scopes.findGlobalType(dataType.customType);
+                variable.values = astStructDef;
+
+                this.evalStructDecl(dataType.customType, astDecl.ident, dataType.arrayIndexes);
+            }
+        }
 
         if (astDecl.rhs !== null) {
             // 数组初始化序列
@@ -103,8 +115,8 @@ class Evaluator {
                     platform.programFail(`variable '${astDecl.ident}' is NOT of array or struct type`);
                 }
 
+                // 将初始化列表展开，并且赋值给变量
                 if (dataType.arrayIndexes.length !== 0) {
-                    // 将初始化列表展开，并且对元素进行表达式求值
                     const initValues = this.getArrayInitValues(dataType, astDecl.rhs.initValues);
 
                     // wk_debug
@@ -113,13 +125,16 @@ class Evaluator {
                     console.log();
 
                     // 对数组进行初始化
-                    variable.initArrayValue(initValues);
+                    this.initArrayValues(variable, initValues);
                 } else {
                     const initValues = this.getStructInitValues(dataType.customType, astDecl.rhs.initValues);
                     // wk_debug
                     console.log('************** debug *****************');
                     debug.debugShow(initValues);
                     console.log();
+
+                    // 对struct进行初始化
+                    this.initStructValue(variable, initValues);
                 }
             } else {
                 // 检查变量是否为数组
@@ -131,19 +146,6 @@ class Evaluator {
             }
         }
 
-        // 将变量加入到当前scopes
-        this.scopes.addIdent(astDecl.ident, variable);
-
-        // 对struct类型进行进一步处理
-        if (astDecl.dataType.baseType === BaseType.TypeStruct) {
-            if (astDecl.dataType.numPtrs === 0) {
-                // 将结构定义赋值给变量，便于后续处理
-                const astStructDef = this.scopes.findGlobalType(astDecl.dataType.customType);
-                variable.values = astStructDef;
-
-                this.evalStructDecl(astDecl.dataType.customType, astDecl.ident, dataType.arrayIndexes);
-            }
-        }
     } // end of evalDeclaration
 
     // 处理自增/自减运算，指针类型和数值类型分别处理
@@ -1550,6 +1552,45 @@ class Evaluator {
 
         result = result.map((v) => v === null ? null : Array.isArray(v) ? v : this.evalExpressionRHS(v), this);
         return result;
+    }
+
+    initStructValue(variable, initValues) {
+        const astStructDef = variable.values;
+        assert(astStructDef !== null, `internal: initStructValue(): struct type ${variable.dataType.customType} undefined`);
+
+        let prefixName = variable.name;
+        if (variable.dataType.arrayIndexes.length === 0) {
+            return this.processInitStructValue(astStructDef, prefixName, initValues);
+        }
+
+        const total = utils.factorial(...variable.dataType.arrayIndexes);
+        let accessIndexes;
+        let prefix;
+        for (let i = 0; i < total; i ++) {
+            accessIndexes = utils.accessIndexesFromPosition(i, arrayIndexes);
+            prefix = prefixName;
+            for (let idx of accessIndexes) {
+                prefix += '[' + idx + ']';
+            }
+            this.processInitStructValue(astStructDef, prefix, initValues);
+        }
+    }
+
+    initArrayValues(initValues) {
+        for (let i = 0; i < initValues.length; i ++) {
+            /*
+            if (initValues[i] === null) {
+                initValues[i] = this.createDefaultValueVariable();
+            }
+            */
+
+            //this.values[i] = this.checkAndRetrieveAssignValue(initValues[i]);
+            if (initValues[i] !== null) {
+                const idx = this.indexFromPosition(i);
+                this.assign(idx, initValues[i]);
+            }
+        }
+        return;
     }
 
     // 根据AST类型进行分发处理

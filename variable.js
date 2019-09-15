@@ -455,23 +455,6 @@ class Variable {
         return this.isNumericType(false, false);
     }
 
-    initArrayValue(initValues) {
-        for (let i = 0; i < initValues.length; i ++) {
-            /*
-            if (initValues[i] === null) {
-                initValues[i] = this.createDefaultValueVariable();
-            }
-            */
-
-            //this.values[i] = this.checkAndRetrieveAssignValue(initValues[i]);
-            if (initValues[i] !== null) {
-                const idx = this.indexFromPosition(i);
-                this.assign(idx, initValues[i]);
-            }
-        }
-        return;
-    }
-
     initScalarValue(value) {
         return this.assign([], value);
     }
