@@ -51,9 +51,18 @@ function accessIndexesFromPosition(pos, arrayIndexes) {
     return indexes;
 }
 
+function firstElement(array) {
+    let a = array;
+    while (Array.isArray(a)) {
+        a = a[0];
+    }
+    return a;
+}
+
 module.exports = {
     isEqualArray,
     factorial,
     expansionPoints,
-    accessIndexesFromPosition
+    accessIndexesFromPosition,
+    firstElement
 };

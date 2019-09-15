@@ -98,17 +98,29 @@ class Evaluator {
         if (astDecl.rhs !== null) {
             // 数组初始化序列
             if (astDecl.rhs.astType === Ast.AstArrayInitializer) {
-                // 检查变量是否为数组
-                if (astDecl.arrayIndexes.length === 0) {
-                    platform.programFail(`variable '${astDecl.ident}' is NOT of array type`);
+                // 检查变量是否为数组或struct
+                if ((dataType.baseType !== BaseType.TypeStruct || dataType.numPtrs !== 0) && dataType.arrayIndexes.length === 0) {
+                    platform.programFail(`variable '${astDecl.ident}' is NOT of array or struct type`);
                 }
-                // 将初始化列表展开，并且对元素进行表达式求值
-                let initializer = new ArrayInit(dataType.arrayIndexes, astDecl.rhs.initValues);
-                let initValues = initializer.doInit();
-                initValues = initValues.map((v) => v === null ? null : this.evalExpressionRHS(v), this);
 
-                // 对数组进行初始化
-                variable.initArrayValue(initValues);
+                if (dataType.arrayIndexes.length !== 0) {
+                    // 将初始化列表展开，并且对元素进行表达式求值
+                    const initValues = this.getArrayInitValues(dataType, astDecl.rhs.initValues);
+
+                    // wk_debug
+                    console.log('************** debug *****************');
+                    debug.debugShow(initValues);
+                    console.log();
+
+                    // 对数组进行初始化
+                    variable.initArrayValue(initValues);
+                } else {
+                    const initValues = this.getStructInitValues(dataType.customType, astDecl.rhs.initValues);
+                    // wk_debug
+                    console.log('************** debug *****************');
+                    debug.debugShow(initValues);
+                    console.log();
+                }
             } else {
                 // 检查变量是否为数组
                 if (astDecl.arrayIndexes.length !== 0) {
@@ -1483,6 +1495,61 @@ class Evaluator {
                 }
             }
         }
+    }
+
+    getArrayInitValues(dataType, initValues) {
+        let result = [];
+
+        if (dataType.baseType === BaseType.TypeStruct && dataType.numPtrs === 0) {
+            const astStructDef = this.scopes.findGlobalType(dataType.customType);
+            assert(astStructDef !== null, `internal: getArrayInitValues(): struct type ${dataType.customType} undefined`);
+
+            const total = utils.factorial(...dataType.arrayIndexes);
+            for (let i = 0; i < total; i ++) {
+                const elem = this.getStructInitValues(dataType.customType, initValues);
+                result.push(elem);
+            }
+        } else {
+            let initializer = new ArrayInit(dataType.arrayIndexes, initValues);
+            result = initializer.doInit();
+            result = result.map((v) => v === null ? null : this.evalExpressionRHS(v), this);
+        }
+
+        return result;
+    }
+
+    getStructInitValues(structName, initValues) {
+        const astStructDef = this.scopes.findGlobalType(structName);
+        assert(astStructDef !== null, `internal: getStructInitValues(): struct type ${structName} undefined`);
+
+        let result = [];
+        for (let varMember of astStructDef.members) {
+            let elem = initValues.shift();
+            elem = (elem === undefined ? null : elem);
+
+            if (varMember.dataType.arrayIndexes.length !== 0) {
+                if (Array.isArray(elem)) {
+                    elem = this.getArrayInitValues(varMember.dataType, elem);
+                } else {
+                    initValues.unshift(elem);
+                    elem = this.getArrayInitValues(varMember.dataType, initValues);
+                }
+            } else if (varMember.dataType.baseType === BaseType.TypeStruct && varMember.dataType.numPtrs === 0) {
+                if (Array.isArray(elem)) {
+                    elem = this.getStructInitValues(varMember.dataType.baseType.customType, elem);
+                } else {
+                    initValues.unshift(elem);
+                    elem = this.getStructInitValues(varMember.dataType.baseType.customType, initValues);
+                }
+            } else {
+                elem = utils.firstElement(elem);
+            }
+
+            result.push(elem);
+        }
+
+        result = result.map((v) => v === null ? null : Array.isArray(v) ? v : this.evalExpressionRHS(v), this);
+        return result;
     }
 
     // 根据AST类型进行分发处理

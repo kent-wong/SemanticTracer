@@ -452,8 +452,10 @@ class Parser {
             if (this.lexer.forwardIfMatch(Token.TokenAssign)) {
                 if (this.lexer.forwardIfMatch(Token.TokenLeftBrace)) {
                     let initValues = this.parseArrayInitializer();
-                    if (astDecl.arrayIndexes.length === 0) {
-                        platform.programFail(`can NOT apply array initializer to scalar variable`);
+
+                    // 检查变量是否为数组或struct
+                    if ((astDecl.dataType.baseType !== BaseType.TypeStruct || astDecl.dataType.numPtrs !== 0) && astDecl.arrayIndexes.length === 0) {
+                        platform.programFail(`can only apply initializer to array or struct`);
                     }
 
                     rhs = {

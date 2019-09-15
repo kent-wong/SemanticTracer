@@ -46,7 +46,7 @@ class ArrayInit {
                     pos += utils.factorial(...subIndexes);
                 } else {
                     // 不在扩展点则取其第一个元素
-                    elem = ArrayInit.firstElement(elem);
+                    elem = utils.firstElement(elem);
                     this.values[start+pos] = elem;
                     pos ++
                 }
@@ -60,14 +60,6 @@ class ArrayInit {
             }
         }
         return ;
-    }
-    
-    static firstElement(array) {
-        let a = array;
-        while (Array.isArray(a)) {
-            a = a[0];
-        }
-        return a;
     }
 }
 
