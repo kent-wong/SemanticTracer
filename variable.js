@@ -414,7 +414,7 @@ class Variable {
             return false;
         }
 
-        if (this.dataType.customType !== null) {
+        if (this.dataType.baseType === BaseType.TypeTypeDef) {
             // todo: 如果是typedef int sometype; 那么应该返回true
             return false;
         }
@@ -432,6 +432,7 @@ class Variable {
             case BaseType.TypeUnsignedShort:
             case BaseType.TypeUnsignedChar:
             case BaseType.TypeUnsignedLong:
+            case BaseType.TypeEnum:
                 return true;
             case BaseType.TypeFP:
                 if (allowFP) {
@@ -459,14 +460,16 @@ class Variable {
         return this.assign([], value);
     }
 
-    initDefaultValue() {
+    initDefaultValue(n) {
+        n = (n === undefined ? 0 : n);
+
         if (this.dataType.arrayIndexes.length !== 0) {
             const values = [];
             values.length = utils.factorial(...this.dataType.arrayIndexes);
-            values.fill(0);
+            values.fill(n);
             this.values = values;
         } else {
-            this.values = 0;
+            this.values = n;
         }
     }
 
@@ -624,7 +627,7 @@ class Variable {
         }
 
         const n = rhsElem.getValue();
-        let result = Variable.convertNumericValue(this.dataType.baseType, n);
+        const result = Variable.convertNumericValue(this.dataType.baseType, n);
         this.setValue(indexes, result);
         return this;
     } // end of assignNumeric
@@ -689,6 +692,7 @@ class Variable {
 
         switch(baseType) {
             case BaseType.TypeInt:
+            case BaseType.TypeEnum:
                 if (n < 0) {
                     result = 0x80000000 - (n & 0x7FFFFFFF);
                     result *= -1;

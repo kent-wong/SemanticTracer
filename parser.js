@@ -64,7 +64,7 @@ class Parser {
         let customType = null;
         let isUnsigned = false;
         let isUnionType = false;
-        const resultType = {
+        let resultType = {
             baseType: null,
             numPtrs: 0,
             customType: null
@@ -146,7 +146,13 @@ class Parser {
                 resultType.customType = customType;
                 break;
             case Token.TokenEnumType:
-                // todo
+                ({token, value: customType} = this.getTokenInfo());
+                if (token !== Token.TokenIdentifier) {
+                    platform.programFail(`expected enum name`);
+                }
+
+                resultType.baseType = BaseType.TypeEnum;
+                resultType.customType = customType;
                 break;
             default:
                 break;

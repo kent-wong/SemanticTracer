@@ -146,6 +146,7 @@ class Evaluator {
             }
         }
 
+        this.checkEnumValue(variable);
     } // end of evalDeclaration
 
     // 处理自增/自减运算，指针类型和数值类型分别处理
@@ -921,6 +922,8 @@ class Evaluator {
         // 纯赋值操作单独处理
         if (assignToken === Token.TokenAssign) {
             lhs.variable.assign(lhs.accessIndexes, rhsElem);
+            this.checkEnumValue(lhs.variable);
+
             return {
                 astType: Ast.AstVariable,
                 variable: lhs.variable,
@@ -980,6 +983,8 @@ class Evaluator {
                 assert(false, `internal: evalAssignOperator(): Unexpected assignToken ${assignToken}`);
                 break;
         }
+
+        this.checkEnumValue(lhs.variable);
 
         return {
             astType: Ast.AstVariable,
@@ -1364,17 +1369,50 @@ class Evaluator {
     }
 
     findEnumValue(id) {
-        let value = null;
         for (let [typeName, astTypeDef] of this.scopes.global.types) {
             if (astTypeDef.astType === Ast.AstEnum) {
                 for (let member of astTypeDef.members) {
                     if (member.id === id) {
-                        value = member.value;
+                        return member.value;
                     }
                 }
             }
         }
-        return value;
+        return null;
+    }
+
+    checkEnumValue(variable) {
+        if (variable.dataType.baseType !== BaseType.TypeEnum) {
+            return ;
+        }
+
+        const astEnumDef = this.scopes.findGlobalType(variable.dataType.customType);
+        assert(astEnumDef !== null, `internal: checkEnumValue(): can NOT find enum type '${variable.dataType.customType}'`);
+
+        let values = [];
+        if (variable.dataType.arrayIndexes.length === 0) {
+            values.push(variable.values);
+        } else {
+            values = variable.values;
+        }
+
+        for (let n of values) {
+            let matched = false;
+            for (let member of astEnumDef.members) {
+                if (member.value.value === n) {
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched) {
+                if (n === 0) {
+                    platform.programFail(`semantic error: enum type '${variable.dataType.customType}' should NOT take default value '${n}'`);
+                } else {
+                    platform.programFail(`semantic error: enum type '${variable.dataType.customType}' should NOT take value '${n}'`);
+                }
+            }
+        }
     }
 
     evalEnumDef(astEnumDef) {

@@ -18,7 +18,7 @@ const baseTypeNames = [
     "TypeUnion",
     "TypeEnum",
     "TypeGotoLabel",
-    "Type_Type",
+    "TypeTypeDef",
 	"TypeIdentifier"
 ];
 
@@ -41,7 +41,7 @@ const BaseTypeEnum = {
     TypeUnion: 16,                  /* merged type */
     TypeEnum: 17,                   /* enumerated integer type */
     TypeGotoLabel: 18,              /* a label we can "goto" */
-    Type_Type: 19,                  /* a type for storing types */
+    TypeTypeDef: 19,                  /* a type for storing types */
 	TypeIdentifier: 20,
 
 	getTypeName: function(type) {
