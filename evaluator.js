@@ -1503,9 +1503,6 @@ class Evaluator {
         let result = [];
 
         if (dataType.baseType === BaseType.TypeStruct && dataType.numPtrs === 0) {
-            const astStructDef = this.scopes.findGlobalType(dataType.customType);
-            assert(astStructDef !== null, `internal: getArrayInitValues(): struct type ${dataType.customType} undefined`);
-
             const total = utils.factorial(...dataType.arrayIndexes);
             for (let i = 0; i < total; i ++) {
                 const elem = this.getStructInitValues(dataType.customType, initValues);
@@ -1554,43 +1551,101 @@ class Evaluator {
         return result;
     }
 
+    processInitStructValue(astStructDef, prefix, initValues) {
+        let variable;
+        let memberName;
+        let elem;
+
+        for (let varMember of astStructDef.members) {
+            memberName = prefix + '.' + varMember.name;
+            variable = this.getVariable(memberName);
+
+            elem = initValues.shift();
+            assert(elem !== undefined, `internal: processInitStructValue(): insufficient initValues`);
+
+            if (varMember.dataType.arrayIndexes.length !== 0) {
+                assert(Array.isArray(elem), `internal: processInitStructValue(): when init an array, initValues should have array element`);
+                
+                this.initArrayValues(variable, elem);
+            }
+            else if (varMember.dataType.baseType === BaseType.TypeStruct && varMember.dataType.numPtrs === 0) {
+                assert(Array.isArray(elem), `internal: processInitStructValue(): when init a struct, initValues should have array element`);
+
+                this.initStructValue(variable, elem);
+            } else {
+                assert(!Array.isArray(elem), `internal: processInitStructValue(): initValues element should NOT be array`);
+
+                if (elem !== null) {
+                    variable.assign([], elem);
+                }
+            }
+        }
+    }
+
     initStructValue(variable, initValues) {
         const astStructDef = variable.values;
         assert(astStructDef !== null, `internal: initStructValue(): struct type ${variable.dataType.customType} undefined`);
 
-        let prefixName = variable.name;
         if (variable.dataType.arrayIndexes.length === 0) {
-            return this.processInitStructValue(astStructDef, prefixName, initValues);
+            return this.processInitStructValue(astStructDef, variable.name, initValues);
         }
 
         const total = utils.factorial(...variable.dataType.arrayIndexes);
         let accessIndexes;
         let prefix;
+        let elem;
         for (let i = 0; i < total; i ++) {
-            accessIndexes = utils.accessIndexesFromPosition(i, arrayIndexes);
-            prefix = prefixName;
+            accessIndexes = utils.accessIndexesFromPosition(i, variable.dataType.arrayIndexes);
+            prefix = variable.name;
             for (let idx of accessIndexes) {
                 prefix += '[' + idx + ']';
             }
-            this.processInitStructValue(astStructDef, prefix, initValues);
+
+            elem = initValues.shift();
+            assert(Array.isArray(elem), `internal: initStructValue(): initValues should have array element`);
+
+            this.processInitStructValue(astStructDef, prefix, elem);
         }
     }
 
-    initArrayValues(initValues) {
-        for (let i = 0; i < initValues.length; i ++) {
+    initArrayValues(variable, initValues) {
+        if (variable.dataType.baseType === BaseType.TypeStruct && variable.dataType.numPtrs === 0) {
+            this.initStructValue(variable, initValues);
+
             /*
-            if (initValues[i] === null) {
-                initValues[i] = this.createDefaultValueVariable();
+            let accessIndexes;
+            let prefix;
+            let structVariable;
+            for (let i = 0; i < total; i ++) {
+                accessIndexes = utils.accessIndexesFromPosition(i, variable.dataType.arrayIndexes);
+                prefix = variable.name;
+                for (let idx of accessIndexes) {
+                    prefix += '[' + idx + ']';
+                }
+
+                structVariable = this.getVariable(prefix);
+                assert(structVariable !== null, `internal: initArrayValues(): can NOT find variable by element struct name`);
+
+                elem = initValues.shift();
+                this.initStructValue(structVariable, initValues);
             }
             */
+        } else {
+            const total = utils.factorial(...variable.dataType.arrayIndexes);
 
-            //this.values[i] = this.checkAndRetrieveAssignValue(initValues[i]);
-            if (initValues[i] !== null) {
-                const idx = this.indexFromPosition(i);
-                this.assign(idx, initValues[i]);
+            let elem;
+            let accessIndexes;
+            for (let i = 0; i < total; i ++) {
+                elem = initValues.shift();
+                assert(elem !== undefined, `internal: initArrayValues(): insufficient initValues`);
+                assert(!Array.isArray(elem), `internal: initArrayValues(): initValues element should NOT be array`);
+
+                if (elem !== null) {
+                    accessIndexes = utils.accessIndexesFromPosition(i, variable.dataType.arrayIndexes);
+                    variable.assign(accessIndexes, elem);
+                }
             }
         }
-        return;
     }
 
     // 根据AST类型进行分发处理
