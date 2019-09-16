@@ -433,7 +433,10 @@ class Parser {
 
             ({token, value} = this.getTokenInfo());
             if (token !== Token.TokenIdentifier) {
-                platform.programFail(`need a identifier here, instead got token type ${token}`);
+                if (astDecl.dataType.baseType === BaseType.TypeStruct && token === Token.TokenSemicolon) {
+                    return null;
+                }
+                platform.programFail(`need a identifier here, instead got token '${Token.getTokenName(token)}'`);
             }
 
             astDecl.ident = value;
@@ -1337,140 +1340,142 @@ class Parser {
         let isUnionType = false;
         const {token: firstToken, value: firstValue} = this.lexer.peekTokenInfo();
 
-        switch (firstToken) {
-            case Token.TokenEOF:
-                return null;
-                break;
+        while (astResult === null) {
+            switch (firstToken) {
+                case Token.TokenEOF:
+                    return null;
+                    break;
 
-            case Token.TokenSemicolon:
-                // 如果此语句只有分号，直接返回null
-                this.getToken();
-                break;
+                case Token.TokenSemicolon:
+                    // 如果此语句只有分号，直接返回null
+                    this.getToken();
+                    break;
 
-            case Token.TokenIdentifier:
-                if (this.typedefs.get(firstValue) !== undefined) {
-                    // identifier是由typedef定义的自定义类型
+                case Token.TokenIdentifier:
+                    if (this.typedefs.get(firstValue) !== undefined) {
+                        // identifier是由typedef定义的自定义类型
+                        astResult = this.parseDeclaration();
+                        return astResult;
+                    } // 否则按expression处理
+                case Token.TokenAsterisk:
+                case Token.TokenAmpersand:
+                case Token.TokenIncrement:
+                case Token.TokenDecrement:
+                case Token.TokenOpenParenth:
+                    astResult = this.parseExpression();
+                    if (this.getToken() !== Token.TokenSemicolon) {
+                        platform.programFail(`missing ';' after expression`);
+                    }
+                    break;
+                    
+                case Token.TokenLeftBrace:
+                    this.getToken();
+                    astResult = this.parseBlock(Token.TokenRightBrace);
+                    this.getToken();
+                    break;
+
+                // 解析控制语句 
+                case Token.TokenIf:
+                    this.getToken();
+                    astResult = this.parseIf();
+                    break;
+                case Token.TokenWhile:
+                    this.getToken();
+                    astResult = this.parseWhile();
+                    break;
+                case Token.TokenDo:
+                    this.getToken();
+                    astResult = this.parseDoWhile();
+                    break;
+                case Token.TokenFor:
+                    this.getToken();
+                    astResult = this.parseFor();
+                    break;
+                case Token.TokenSwitch:
+                    this.getToken();
+                    astResult = this.parseSwitch();
+                    break; 
+
+                case Token.TokenEnumType:
+                    astResult = this.processEnumDef();
+                    if (astResult === null) {
+                        astResult = this.parseDeclaration();
+                    }
+                    break;
+
+                case Token.TokenUnionType:
+                case Token.TokenStructType:
+                    astResult = this.processStructDef(false);
+                    if (astResult === null) {
+                        astResult = this.parseDeclaration();
+                    }
+                    break;
+
+                // 下列为以类型开始的语句，按照声明语句来解析(包括函数定义)
+                case Token.TokenIntType:
+                case Token.TokenShortType:
+                case Token.TokenCharType:
+                case Token.TokenLongType:
+                case Token.TokenFloatType:
+                case Token.TokenDoubleType:
+                case Token.TokenVoidType:
+                case Token.TokenUnionType:
+                case Token.TokenEnumType:
+                case Token.TokenSignedType:
+                case Token.TokenUnsignedType:
+                case Token.TokenStaticType:
+                case Token.TokenAutoType:
+                case Token.TokenRegisterType:
+                case Token.TokenExternType:
                     astResult = this.parseDeclaration();
-                    return astResult;
-                } // 否则按expression处理
-            case Token.TokenAsterisk:
-            case Token.TokenAmpersand:
-            case Token.TokenIncrement:
-            case Token.TokenDecrement:
-            case Token.TokenOpenParenth:
-                astResult = this.parseExpression();
-                if (this.getToken() !== Token.TokenSemicolon) {
-                    platform.programFail(`missing ';' after expression`);
-                }
-                break;
-                
-            case Token.TokenLeftBrace:
-                this.getToken();
-                astResult = this.parseBlock(Token.TokenRightBrace);
-                this.getToken();
-                break;
+                    break;
+                   
+                case Token.TokenTypedef:
+                    astResult = this.processStructDef(true);
+                    if (astResult !== null) {
+                        return astResult;
+                    }
+                    astResult = this.parseTypedef();
+                    break; 
 
-            // 解析控制语句 
-            case Token.TokenIf:
-                this.getToken();
-                astResult = this.parseIf();
-                break;
-            case Token.TokenWhile:
-                this.getToken();
-                astResult = this.parseWhile();
-                break;
-            case Token.TokenDo:
-                this.getToken();
-                astResult = this.parseDoWhile();
-                break;
-            case Token.TokenFor:
-                this.getToken();
-                astResult = this.parseFor();
-                break;
-            case Token.TokenSwitch:
-                this.getToken();
-                astResult = this.parseSwitch();
-                break; 
+                case Token.TokenGoto:
+                    break; 
 
-            case Token.TokenEnumType:
-                astResult = this.processEnumDef();
-                if (astResult === null) {
-                    astResult = this.parseDeclaration();
-                }
-                break;
+                case Token.TokenBreak:
+                    this.getToken();
+                    astResult = {
+                        astType: Ast.AstBreak,
+                        token: Token.TokenBreak
+                    };
+                    if (this.getToken() !== Token.TokenSemicolon) {
+                        platform.programFail(`missing ';' after expression`);
+                    }
+                    break;
 
-            case Token.TokenUnionType:
-            case Token.TokenStructType:
-                astResult = this.processStructDef(false);
-                if (astResult === null) {
-                    astResult = this.parseDeclaration();
-                }
-                break;
+                case Token.TokenContinue:
+                    this.getToken();
+                    astResult = {
+                        astType: Ast.AstContinue,
+                        token: Token.TokenContinue
+                    };
+                    if (this.getToken() !== Token.TokenSemicolon) {
+                        platform.programFail(`missing ';' after expression`);
+                    }
+                    break;
+                case Token.TokenReturn:
+                    this.getToken();
+                    astResult = {
+                        astType: Ast.AstReturn,
+                        value: this.parseExpression()
+                    };
+                    if (this.getToken() !== Token.TokenSemicolon) {
+                        platform.programFail(`missing ';' after expression`);
+                    }
+                    break;
 
-            // 下列为以类型开始的语句，按照声明语句来解析(包括函数定义)
-            case Token.TokenIntType:
-            case Token.TokenShortType:
-            case Token.TokenCharType:
-            case Token.TokenLongType:
-            case Token.TokenFloatType:
-            case Token.TokenDoubleType:
-            case Token.TokenVoidType:
-            case Token.TokenUnionType:
-            case Token.TokenEnumType:
-            case Token.TokenSignedType:
-            case Token.TokenUnsignedType:
-            case Token.TokenStaticType:
-            case Token.TokenAutoType:
-            case Token.TokenRegisterType:
-            case Token.TokenExternType:
-                astResult = this.parseDeclaration();
-                break;
-               
-            case Token.TokenTypedef:
-                astResult = this.processStructDef(true);
-                if (astResult !== null) {
-                    return astResult;
-                }
-                astResult = this.parseTypedef();
-                break; 
-
-            case Token.TokenGoto:
-                break; 
-
-            case Token.TokenBreak:
-                this.getToken();
-                astResult = {
-                    astType: Ast.AstBreak,
-                    token: Token.TokenBreak
-                };
-                if (this.getToken() !== Token.TokenSemicolon) {
-                    platform.programFail(`missing ';' after expression`);
-                }
-                break;
-
-            case Token.TokenContinue:
-                this.getToken();
-                astResult = {
-                    astType: Ast.AstContinue,
-                    token: Token.TokenContinue
-                };
-                if (this.getToken() !== Token.TokenSemicolon) {
-                    platform.programFail(`missing ';' after expression`);
-                }
-                break;
-            case Token.TokenReturn:
-                this.getToken();
-                astResult = {
-                    astType: Ast.AstReturn,
-                    value: this.parseExpression()
-                };
-                if (this.getToken() !== Token.TokenSemicolon) {
-                    platform.programFail(`missing ';' after expression`);
-                }
-                break;
-
-            default:
-                platform.programFail(`Unrecognized leading token in a statement: ${firstToken}`);
+                default:
+                    platform.programFail(`Unrecognized leading token in a statement: ${firstToken}`);
+            }
         }
 
         return astResult;

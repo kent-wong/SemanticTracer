@@ -103,7 +103,7 @@ class Evaluator {
                 const astStructDef = this.scopes.findGlobalType(dataType.customType);
                 variable.values = astStructDef;
 
-                this.evalStructDecl(dataType.customType, astDecl.ident, dataType.arrayIndexes);
+                this.evalStructDecl(astStructDef, astDecl.ident, dataType.arrayIndexes);
             }
         }
 
@@ -1429,7 +1429,7 @@ class Evaluator {
         }
 
         for (let astDecl of astStructDef.members) {
-            if (astDecl.dataType.baseType === BaseType.TypeStruct) {
+            if (astDecl.dataType.baseType === BaseType.TypeStruct && astDecl.dataType.numPtrs === 0) {
                 if (this.scopes.findGlobalType(astDecl.dataType.customType) === null) {
                     platform.programFail(`struct ${astDecl.dataType.customType} undefined`);
                 }
@@ -1451,10 +1451,7 @@ class Evaluator {
         this.scopes.addType(astStructDef.name, astStructDef);
     } // end of evalStructDef()
 
-    evalStructDecl(structName, prefixName, arrayIndexes) {
-        const astStructDef = this.scopes.findGlobalType(structName);
-        assert(astStructDef !== null, `internal: evalStructDecl(): struct type ${structName} undefined`);
-
+    evalStructDecl(astStructDef, prefixName, arrayIndexes) {
         if (arrayIndexes.length === 0) {
             return this.processStructDecl(astStructDef, prefixName);
         }
@@ -1493,7 +1490,7 @@ class Evaluator {
                     }
                     variable.values = astStructDef;
 
-                    this.evalStructDecl(varMember.dataType.customType, memberName, varMember.dataType.arrayIndexes);
+                    this.evalStructDecl(astStructDef, memberName, varMember.dataType.arrayIndexes);
                 }
             }
         }
