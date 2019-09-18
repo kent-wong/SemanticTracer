@@ -1362,8 +1362,8 @@ class Evaluator {
         };
     }
 
-    evalComposite(astComposite) {
-        for (let astNode of astComposite.astList) {
+    evalList(astList) {
+        for (let astNode of astList.astList) {
             this.evalDispatch(astNode);
         }
     }
@@ -1686,8 +1686,8 @@ class Evaluator {
     // 根据AST类型进行分发处理
     evalDispatch(astNode) {
         switch (astNode.astType) {
-            case Ast.AstComposite:
-                this.evalComposite(astNode);
+            case Ast.AstList:
+                this.evalList(astNode);
                 break;
             case Ast.AstDeclaration:
                 this.evalDeclaration(astNode);

@@ -31,7 +31,7 @@ const AstEnum = {
     AstUnaryExor: 27,
     AstSwitch: 28,
     AstParam: 29,
-    AstComposite: 30,
+    AstList: 30,
     AstReturn: 31,
     AstBreak: 32,
     AstContinue: 33,
@@ -41,9 +41,9 @@ const AstEnum = {
     AstRefByPtr: 37,
     AstRefByDot: 38,
 
-    createComposite: function(...astList) {
+    createList: function(...astList) {
         return {
-            astType: this.AstComposite,
+            astType: this.AstList,
             astList: astList
         };
     },
@@ -84,7 +84,7 @@ const AstNames = [
     "AstUnaryExor",
     "AstSwitch",
     "AstParam",
-    "AstComposite",
+    "AstList",
     "AstReturn",
     "AstBreak",
     "AstContinue",

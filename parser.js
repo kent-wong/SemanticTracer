@@ -345,10 +345,11 @@ class Parser {
         const astList = [];
         let token, ident;
         const astModelType = this.parseType();
-        if (valueType === null) {
+        if (astModelType === null) {
             platform.programFail(`unrecognized type`);
         }
 
+        let astTypedef;
         do {
             // 解析指针
             while (this.lexer.forwardIfMatch(Token.TokenAsterisk)) {
@@ -356,15 +357,15 @@ class Parser {
             }
 
             // 由声明语句生成的AST
-            const astTypedef = {
+            astTypedef = {
                 astType: Ast.AstTypedef,
-                valueType: {
-                    astBaseType: astModelType.baseType,
+                dataType: {
+                    baseType: astModelType.baseType,
                     numPtrs: astModelType.numPtrs,
-                    ident: astModelType.ident
+                    customType: astModelType.customType,
+                    arrayIndexes: []
                 },
-                ident: null,
-                arrayIndexes: []
+                ident: null
             };
 
             // 将指针数目清空
@@ -372,7 +373,7 @@ class Parser {
 
             ({token, value: ident} = this.getTokenInfo());
             if (token !== Token.TokenIdentifier) {
-                platform.programFail(`need a identifier here, instead got token type ${token}`);
+                platform.programFail(`need a identifier here, instead got token type ${Token.getTokenName(token)}`);
             }
 
             astTypedef.ident = ident;
@@ -380,7 +381,7 @@ class Parser {
             // 处理数组下标
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
-                astTypedef.arrayIndexes.push(astIndex);
+                astTypedef.dataType.arrayIndexes.push(astIndex);
                 this.getToken();
             }
 
@@ -393,10 +394,14 @@ class Parser {
         } while (this.lexer.forwardIfMatch(Token.TokenComma));
 
         if (this.getToken() !== Token.TokenSemicolon) {
-            platform.programFail(`missing ';' after declaration`);
+            platform.programFail(`missing ';' after typedefs`);
         }
 
-        return Ast.createComposite(...astList);
+        if (astList.length === 1) {
+            return astTypedef;
+        } else {
+            return Ast.createList(...astList);
+        }
     }
 
     /* 解析声明语句，返回AST */
@@ -494,7 +499,7 @@ class Parser {
         if (astList.length === 1) {
             return astDecl;
         } else {
-            return Ast.createComposite(...astList);
+            return Ast.createList(...astList);
         }
     } // end of parseDeclaration(...stopAt)
 
@@ -1437,6 +1442,7 @@ class Parser {
                     break;
                    
                 case Token.TokenTypedef:
+                    this.lexer.getToken();
                     astResult = this.processStructDef(true);
                     if (astResult !== null) {
                         return astResult;
