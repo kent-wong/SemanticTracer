@@ -89,7 +89,7 @@ class Evaluator {
         const dataType = Variable.createDataType(astDecl.dataType.baseType,
                                                    astDecl.dataType.numPtrs,
                                                    astDecl.dataType.customType);
-        dataType.arrayIndexes = astDecl.arrayIndexes.map(this.evalExpressionInt, this);
+        dataType.arrayIndexes = astDecl.dataType.arrayIndexes.map(this.evalExpressionInt, this);
 
         // 创建变量，将变量加入到当前scopes
         const variable = new Variable(dataType, astDecl.ident, null);
@@ -138,7 +138,7 @@ class Evaluator {
                 }
             } else {
                 // 检查变量是否为数组
-                if (astDecl.arrayIndexes.length !== 0) {
+                if (astDecl.dataType.arrayIndexes.length !== 0) {
                     platform.programFail(`invalid initializer: variable '${astDecl.ident}' is an array`);
                 }
                 let varRHS = this.evalExpressionRHS(astDecl.rhs);
@@ -1476,7 +1476,7 @@ class Evaluator {
             dataType = Variable.createDataType(astDecl.dataType.baseType,
                                                        astDecl.dataType.numPtrs,
                                                        astDecl.dataType.customType);
-            dataType.arrayIndexes = astDecl.arrayIndexes.map(this.evalExpressionInt, this);
+            dataType.arrayIndexes = astDecl.dataType.arrayIndexes.map(this.evalExpressionInt, this);
 
             // 创建变量
             variable = new Variable(dataType, astDecl.ident, null);
@@ -1646,25 +1646,6 @@ class Evaluator {
     initArrayValues(variable, initValues) {
         if (variable.dataType.baseType === BaseType.TypeStruct && variable.dataType.numPtrs === 0) {
             this.initStructValue(variable, initValues);
-
-            /*
-            let accessIndexes;
-            let prefix;
-            let structVariable;
-            for (let i = 0; i < total; i ++) {
-                accessIndexes = utils.accessIndexesFromPosition(i, variable.dataType.arrayIndexes);
-                prefix = variable.name;
-                for (let idx of accessIndexes) {
-                    prefix += '[' + idx + ']';
-                }
-
-                structVariable = this.getVariable(prefix);
-                assert(structVariable !== null, `internal: initArrayValues(): can NOT find variable by element struct name`);
-
-                elem = initValues.shift();
-                this.initStructValue(structVariable, initValues);
-            }
-            */
         } else {
             const total = utils.factorial(...variable.dataType.arrayIndexes);
 
@@ -1721,6 +1702,7 @@ class Evaluator {
             case Ast.AstUnion:
                 break;
             case Ast.AstTypedef:
+                // 忽略，在parser中已经进行了typedef的替换
                 break;
             case Ast.AstEnum:
                 this.evalEnumDef(astNode);

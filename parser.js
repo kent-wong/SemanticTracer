@@ -67,7 +67,8 @@ class Parser {
         let resultType = {
             baseType: null,
             numPtrs: 0,
-            customType: null
+            customType: null,
+            arrayIndexes: []
         };
 
         // 首先处理自定义类型
@@ -75,14 +76,15 @@ class Parser {
         if (token === Token.TokenIdentifier) {
             // 由于无法区分自定义类型和普通标识符，所以需要查表来确认
             resultType = this.typedefs.get(customType);
+            if (resultType === undefined) {
+                return null;
+            }
+            assert(resultType.astType === Ast.AstTypedef, `internal: parseType(): wrong typedefs astType: ${resultType.astType}`);
 
             // 解析指针
             this.getToken();
-            while (this.lexer.forwardIfMatch(Token.TokenAsterisk)) {
-                resultType.numPtrs ++;
-            }
 
-            return resultType;
+            return resultType.dataType;
         }
 
         // 跳过这几种类型
@@ -158,10 +160,12 @@ class Parser {
                 break;
         }
 
+        /*
         // 解析指针
         while (this.lexer.forwardIfMatch(Token.TokenAsterisk)) {
             resultType.numPtrs ++;
         }
+        */
 
         if (resultType.baseType === null) {
             resultType = null;
@@ -344,46 +348,44 @@ class Parser {
     parseTypedef() {
         const astList = [];
         let token, ident;
-        const astModelType = this.parseType();
-        if (astModelType === null) {
+        const astOriginalType = this.parseType();
+        if (astOriginalType === null) {
             platform.programFail(`unrecognized type`);
         }
 
         let astTypedef;
+        let totalPtrs;
         do {
             // 解析指针
+            totalPtrs = astOriginalType.numPtrs;
             while (this.lexer.forwardIfMatch(Token.TokenAsterisk)) {
-                astModelType.numPtrs ++;
+                totalPtrs ++;
             }
-
-            // 由声明语句生成的AST
-            astTypedef = {
-                astType: Ast.AstTypedef,
-                dataType: {
-                    baseType: astModelType.baseType,
-                    numPtrs: astModelType.numPtrs,
-                    customType: astModelType.customType,
-                    arrayIndexes: []
-                },
-                ident: null
-            };
-
-            // 将指针数目清空
-            astModelType.numPtrs = 0;
 
             ({token, value: ident} = this.getTokenInfo());
             if (token !== Token.TokenIdentifier) {
                 platform.programFail(`need a identifier here, instead got token type ${Token.getTokenName(token)}`);
             }
 
-            astTypedef.ident = ident;
-
             // 处理数组下标
+            let arrayIndexes = [];
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
-                astTypedef.dataType.arrayIndexes.push(astIndex);
                 this.getToken();
+                arrayIndexes.push(astIndex);
             }
+
+            // 由声明语句生成的AST
+            astTypedef = {
+                astType: Ast.AstTypedef,
+                dataType: {
+                    baseType: astOriginalType.baseType,
+                    numPtrs: totalPtrs,
+                    customType: astOriginalType.customType,
+                    arrayIndexes: arrayIndexes.concat(astOriginalType.arrayIndexes.slice())
+                },
+                ident: ident
+            };
 
             // 添加到当前语句块
             astList.push(astTypedef);
@@ -407,10 +409,10 @@ class Parser {
     /* 解析声明语句，返回AST */
     parseDeclaration(...stopAt) {
         const astList = [];
-        let token, value;
+        let token, ident;
         let rhs;
-        const astModelType = this.parseType();
-        if (astModelType === null) {
+        const astOriginalType = this.parseType();
+        if (astOriginalType === null) {
             platform.programFail(`unrecognized type`);
         }
 
@@ -420,29 +422,15 @@ class Parser {
         }
 
         let astDecl;
+        let totalPtrs;
         do {
             // 解析指针
+            totalPtrs = astOriginalType.numPtrs;
             while (this.lexer.forwardIfMatch(Token.TokenAsterisk)) {
-                astModelType.numPtrs ++;
+                totalPtrs ++;
             }
 
-            // 由声明语句生成的AST
-            astDecl = {
-                astType: Ast.AstDeclaration,
-                dataType: {
-                    baseType: astModelType.baseType,
-                    numPtrs: astModelType.numPtrs,
-                    customType: astModelType.customType
-                },
-                ident: null,
-                arrayIndexes: [],
-                rhs: null
-            };
-
-            // 将指针数目清空
-            astModelType.numPtrs = 0;
-
-            ({token, value} = this.getTokenInfo());
+            ({token, value: ident} = this.getTokenInfo());
             if (token !== Token.TokenIdentifier) {
                 if (astDecl.dataType.baseType === BaseType.TypeStruct && token === Token.TokenSemicolon) {
                     return null;
@@ -450,17 +438,29 @@ class Parser {
                 platform.programFail(`need a identifier here, instead got token '${Token.getTokenName(token)}'`);
             }
 
-            astDecl.ident = value;
-
             // 处理数组下标
+            const arrayIndexes = [];
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
                 if (this.lexer.forwardIfMatch(Token.TokenRightSquareBracket)) {
                     platform.programFail(`array size missing in '${astDecl.ident}'`);
                 }
                 let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
-                astDecl.arrayIndexes.push(astIndex);
                 this.getToken();
+                arrayIndexes.push(astIndex);
             }
+
+            // 由声明语句生成的AST
+            astDecl = {
+                astType: Ast.AstDeclaration,
+                dataType: {
+                    baseType: astOriginalType.baseType,
+                    numPtrs: totalPtrs,
+                    customType: astOriginalType.customType,
+                    arrayIndexes: arrayIndexes.concat(astOriginalType.arrayIndexes.slice())
+                },
+                ident: ident,
+                rhs: null
+            };
 
             // 处理赋值
             if (this.lexer.forwardIfMatch(Token.TokenAssign)) {
@@ -1221,12 +1221,16 @@ class Parser {
                 platform.programFail(`expected a parameter type`);
             }
 
+            // 解析指针
+            while (this.lexer.forwardIfMatch(Token.TokenAsterisk)) {
+                astParamType.numPtrs ++;
+            }
+
             // 参数的AST
             const astParam = {
                 astType: Ast.AstParam,
                 paramType: astParamType,
-                ident: null,
-                arrayIndexes: []
+                ident: null
             };
 
             // 函数声明中参数可以没有名字
@@ -1246,25 +1250,29 @@ class Parser {
             // 处理数组下标
             let firstParam = true;
             let nullIndex = false;
+            const originalArrayIndexes = astParamType.arrayIndexes;
+            astParamType.arrayIndexes = [];
             while (this.lexer.forwardIfMatch(Token.TokenLeftSquareBracket)) {
                 if (this.lexer.forwardIfMatch(Token.TokenRightSquareBracket)) {
                     // 允许"func(int a[])"这种空索引作为参数
                     // 注意：只允许一维数组使用这种简化语法，多维数组必须完整指定索引值，例如"func(int a[][])"是不允许的
-                    if (!firstParam) {
+                    if (!firstParam || originalArrayIndexes.length !== 0) {
                         platform.programFail(`declaration of '${paramName}' as multidimensional array must have bounds for all dimensions`);
                     }
-                    astParam.arrayIndexes.push(null);
+
+                    astParamType.arrayIndexes.push(null);
                     nullIndex = true;
                 } else {
                     if (nullIndex) {
                         platform.programFail(`declaration of '${paramName}' as multidimensional array must have bounds for all dimensions`);
                     }
                     let astIndex = this.parseExpression(Token.TokenRightSquareBracket);
-                    astParam.arrayIndexes.push(astIndex);
                     this.getToken();
+                    astParamType.arrayIndexes.push(astIndex);
                 }
                 firstParam = false;
             }
+            astParamType.arrayIndexes = astParamType.arrayIndexes.concat(originalArrayIndexes);
 
             // 添加到参数AST列表
             paramList.push(astParam);
