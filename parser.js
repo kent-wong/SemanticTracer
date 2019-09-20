@@ -468,7 +468,7 @@ class Parser {
                     let initValues = this.parseArrayInitializer();
 
                     // 检查变量是否为数组或struct
-                    if ((astDecl.dataType.baseType !== BaseType.TypeStruct || astDecl.dataType.numPtrs !== 0) && astDecl.arrayIndexes.length === 0) {
+                    if ((astDecl.dataType.baseType !== BaseType.TypeStruct || astDecl.dataType.numPtrs !== 0) && astDecl.dataType.arrayIndexes.length === 0) {
                         platform.programFail(`can only apply initializer to array or struct`);
                     }
 

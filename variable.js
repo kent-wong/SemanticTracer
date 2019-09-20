@@ -627,7 +627,7 @@ class Variable {
 
         let n = rhsElem.getValue();
         if (this.dataType.baseType !== rhsElem.dataType.baseType) {
-            n = Variable.convertNumericValue(this.dataType.baseType, n);
+            n = Variable.convertNumericValue(this.dataType.baseType, rhsElem.dataType.baseType, n);
         }
 
         this.setValue(indexes, n);
@@ -698,9 +698,12 @@ class Variable {
     }
 
 
-    static convertNumericValue(baseType, n, fromType) {
-        let result = n;
+    static convertNumericValue(baseType, fromType, n) {
+        if (fromType === BaseType.TypeChar) {
+            n = n.charCodeAt(0);
+        }
 
+        let result = n;
         switch(baseType) {
             case BaseType.TypeInt:
             case BaseType.TypeEnum:
@@ -720,7 +723,6 @@ class Variable {
                 }
                 break;
             case BaseType.TypeChar:
-                //result = n & 0x7F;
                 result = String.fromCharCode(result);
                 break;
             case BaseType.TypeLong:
@@ -744,6 +746,7 @@ class Variable {
                 result = n & 0xFFFFFFFF;
                 break;
             case BaseType.TypeFP:
+                // todo
                 break;
             default:
                 platform.programFail(`unexpected baseType ${baseType}`);
