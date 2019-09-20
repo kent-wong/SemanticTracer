@@ -1,4 +1,4 @@
-const baseTypeNames = [
+const baseTypeEnumNames = [
 	"TypeInvalid",
 	"TypeVoid",
     "TypeInt",
@@ -22,6 +22,30 @@ const baseTypeNames = [
 	"TypeIdentifier"
 ];
 
+const baseTypeNames = [
+    null,
+	"void",
+    "int",
+    "short",
+    "char",
+    "long",
+    "unsigned int",
+    "unsigned short",
+    "unsigned char",
+    "unsigned long",
+    "double",
+    "function",
+    "macro",
+    "pointer",
+    "array",
+    "struct",
+    "union",
+    "enum",
+    "goto_label",
+    "typedef",
+	"identifier"
+];
+
 const BaseTypeEnum = {
 	TypeVoid: 1,                   /* no type */
     TypeInt: 2,                    /* integer */
@@ -43,6 +67,10 @@ const BaseTypeEnum = {
     TypeGotoLabel: 18,              /* a label we can "goto" */
     TypeTypeDef: 19,                  /* a type for storing types */
 	TypeIdentifier: 20,
+
+	getTypeEnumName: function(type) {
+		return baseTypeEnumNames[type];
+	},
 
 	getTypeName: function(type) {
 		return baseTypeNames[type];

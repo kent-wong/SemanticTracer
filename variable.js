@@ -14,14 +14,15 @@ class Variable {
         this.values = values;
     }
 
-    static createDataType(baseType, numPtrs, customType) {
+    static createDataType(baseType, arrayIndexes, numPtrs, customType) {
+        arrayIndexes = (arrayIndexes === undefined ? [] : arrayIndexes);
         numPtrs = (numPtrs === undefined ? 0 : numPtrs);
         customType = (customType === undefined ? null : customType);
 
         return {
             baseType: baseType,
             numPtrs: numPtrs,
-            arrayIndexes: [],
+            arrayIndexes: arrayIndexes,
             customType: customType
         };
     }
@@ -299,7 +300,7 @@ class Variable {
     }
 
     createElementAddressVariable(indexes) {
-        indexes = (indexes === undefined ? null : indexes);
+        indexes = (indexes === undefined ? [] : indexes);
 
         // 索引维度和变量维度相等，返回指向变量(的元素)的指针
         if (indexes.length === this.dataType.arrayIndexes.length) {
@@ -328,9 +329,7 @@ class Variable {
 
     // 创建一个指针variable，以指定的元素为其引用
     createElementPointerVariable(indexes) {
-        if (indexes === undefined) {
-            indexes = [];
-        }
+        indexes = (indexes === undefined ? [] : indexes);
 
         this.checkAccessIndexes(indexes);
 
@@ -626,9 +625,12 @@ class Variable {
             platform.programFail(`Incompatible types`);
         }
 
-        const n = rhsElem.getValue();
-        const result = Variable.convertNumericValue(this.dataType.baseType, n);
-        this.setValue(indexes, result);
+        let n = rhsElem.getValue();
+        if (this.dataType.baseType !== rhsElem.dataType.baseType) {
+            n = Variable.convertNumericValue(this.dataType.baseType, n);
+        }
+
+        this.setValue(indexes, n);
         return this;
     } // end of assignNumeric
 
@@ -651,29 +653,38 @@ class Variable {
 
         }
 
-        // todo
-        assert(false, `assign(${indexes})`);
+        platform.programFail(`invalid assignment: try to assign type '${this.getTypeName()}' to '${rhsElem.getTypeName()}'`);
     } // end of assign
 
-    createDataType(baseType, numPtrs, customType, arrayIndexes) {
-        if (numPtrs === undefined) {
-            numPtrs = 0;
+    getTypeName() {
+        let baseTypeName = BaseType.getTypeName(this.dataType.baseType);
+        if (this.dataType.baseType === BaseType.TypeStruct ||
+              this.dataType.baseType === BaseType.TypeUnion) {
+            baseTypeName += ' ' + this.dataType.customType;
         }
-        if (customType === undefined) {
-            customType = null;
-        }
-        if (arrayIndexes === undefined) {
-            arrayIndexes = [];
+        for (let i = 0; i < this.dataType.numPtrs; i ++) {
+            baseTypeName += '*';
         }
 
-        return {
-            baseType: baseType,
-            numPtrs: numPtrs,
-            arrayIndexes: arrayIndexes,
-            customType: customType
-        };
+        return baseTypeName;
     }
 
+    static createCharVariable(c, name) {
+        c = (c === undefined ? '' : c);
+
+        const value = c;
+        const dataType = Variable.createDataType(BaseType.TypeChar);
+        return new Variable(dataType, name, value);
+    }
+
+    static createStringVariable(str, name) {
+        str = (str === undefined ? '' : str);
+
+        const value = str.split('');
+        const dataType = Variable.createDataType(BaseType.TypeChar, [value.length]);
+        return new Variable(dataType, name, value);
+    }
+  
     static createNumericVariable(baseType, name, value) {
         const dataType = Variable.createDataType(baseType);
         return new Variable(dataType, name, value);
@@ -687,7 +698,7 @@ class Variable {
     }
 
 
-    static convertNumericValue(baseType, n) {
+    static convertNumericValue(baseType, n, fromType) {
         let result = n;
 
         switch(baseType) {
@@ -709,12 +720,8 @@ class Variable {
                 }
                 break;
             case BaseType.TypeChar:
-                if (n < 0) {
-                    result = 0x80- (n & 0x7F);
-                    result *= -1;
-                } else {
-                    result = n & 0x7F;
-                }
+                //result = n & 0x7F;
+                result = String.fromCharCode(result);
                 break;
             case BaseType.TypeLong:
                 if (n < 0) {

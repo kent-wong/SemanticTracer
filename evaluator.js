@@ -87,6 +87,7 @@ class Evaluator {
         }
 
         const dataType = Variable.createDataType(astDecl.dataType.baseType,
+                                                   [],
                                                    astDecl.dataType.numPtrs,
                                                    astDecl.dataType.customType);
         dataType.arrayIndexes = astDecl.dataType.arrayIndexes.map(this.evalExpressionInt, this);
@@ -372,15 +373,18 @@ class Evaluator {
 	variableRefFromAstConstant(astConst) {
 		let varRef;
 		let variable;
-		let baseType;
 
 		if (astConst.token === Token.TokenIntegerConstant) {
-			baseType = BaseType.TypeInt;
+            variable = Variable.createNumericVariable(BaseType.TypeInt, null, astConst.value);
 		} else if (astConst.token === Token.TokenFPConstant) {
-			baseType = BaseType.TypeFP;
-		}
+            variable = Variable.createNumericVariable(BaseType.TypeFP, null, astConst.value);
+		} else if (astConst.token === Token.TokenStringConstant) {
+            variable = Variable.createStringVariable(astConst.value);
+            variable = variable.createElementPointerVariable([0]);
+		} else if (astConst.token === Token.TokenCharacterConstant) {
+            variable = Variable.createCharVariable(astConst.value);
+        }
 
-		variable = Variable.createNumericVariable(baseType, null, astConst.value);
 		varRef = this.variableRefFromVariable(variable, []);
 		return varRef;
 	}
@@ -1217,8 +1221,9 @@ class Evaluator {
 
         // 评估返回类型
         const returnType = Variable.createDataType(astFuncDef.returnType.baseType,
-                                                   astFuncDef.returnType.numPtrs,
-                                                   astFuncDef.returnType.customType);
+                                                     [],
+                                                     astFuncDef.returnType.numPtrs,
+                                                     astFuncDef.returnType.customType);
         astFuncDef.returnType = returnType;
 
         // evaluate parameters
@@ -1228,8 +1233,9 @@ class Evaluator {
         let paramVariable;
         for (let param of astFuncDef.params) {
             paramType = Variable.createDataType(param.paramType.baseType,
-                                                param.paramType.numPtrs,
-                                                param.paramType.customType);
+                                                  [],
+                                                  param.paramType.numPtrs,
+                                                  param.paramType.customType);
             paramIndexes = [];
             for (let idxExpression of param.arrayIndexes) {
                 if (idxExpression === null) {
@@ -1474,8 +1480,9 @@ class Evaluator {
             }
 
             dataType = Variable.createDataType(astDecl.dataType.baseType,
-                                                       astDecl.dataType.numPtrs,
-                                                       astDecl.dataType.customType);
+                                                 [],
+                                                 astDecl.dataType.numPtrs,
+                                                 astDecl.dataType.customType);
             dataType.arrayIndexes = astDecl.dataType.arrayIndexes.map(this.evalExpressionInt, this);
 
             // 创建变量
